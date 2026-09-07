@@ -1,3 +1,4 @@
+import { c } from "./banner.ts";
 import type { Assessment, Evidence } from "./signals/evidence.ts";
 import type { Setup } from "./types.ts";
 
@@ -12,11 +13,13 @@ export function explain(setup: Setup, a: Assessment): string {
   const L: string[] = [];
   const sym = setup.token.symbol ?? setup.token.address.slice(0, 10);
 
+  const rule = c.faint("═".repeat(66));
+  const head = `  ${a.label}  ${sym}  ·  score ${a.score}/100  ·  ${setup.chain}`;
   L.push("");
-  L.push(`${"═".repeat(66)}`);
-  L.push(`  ${a.label}  ${sym}  ·  score ${a.score}/100  ·  ${setup.chain}`);
-  L.push(`  ${a.headline}`);
-  L.push(`${"═".repeat(66)}`);
+  L.push(rule);
+  L.push(a.label === "SETUP" ? c.bold(c.green(head)) : head);
+  L.push(`  ${c.dim(a.headline)}`);
+  L.push(rule);
 
   L.push(`  token   ${setup.token.address}`);
   L.push(`  bought  ${setup.buyers.length} wallets · ${setup.buyers.map((b) => b.handle ?? b.wallet.slice(0, 8)).join(", ")}`);

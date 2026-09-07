@@ -8,7 +8,9 @@
 import { startDashboard } from "./serve.ts";
 import { startScanner } from "./scanner.ts";
 import { config } from "./config.ts";
+import { banner } from "./banner.ts";
 
+if (!config.fomoKey) banner("dashboard only");
 const server = startDashboard();
 
 let scanner: Awaited<ReturnType<typeof startScanner>> | null = null;

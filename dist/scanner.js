@@ -1,4 +1,5 @@
 import { config } from "./config.js";
+import { banner, c } from "./banner.js";
 import { FomoClient } from "./fomo/client.js";
 import { FomoStream } from "./fomo/stream.js";
 import { Engine } from "./engine.js";
@@ -14,7 +15,7 @@ export async function startScanner() {
         throw new Error("MODE=live is not implemented. See src/exec/live.ts.");
     const fomo = new FomoClient();
     const engine = new Engine(fomo, executorFor(config.mode));
-    console.log(`[boot] mode=${config.mode} executor=${executorFor(config.mode).name}`);
+    banner(`mode=${config.mode}  executor=${executorFor(config.mode).name}`);
     await engine.loadWatchlist(100);
     const timers = [
         setInterval(() => engine.loadWatchlist(100).catch((e) => console.warn(`[engine] watchlist refresh failed: ${e}`)), 60 * 60_000),

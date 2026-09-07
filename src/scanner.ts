@@ -1,4 +1,5 @@
 import { config } from "./config.ts";
+import { banner, c } from "./banner.ts";
 import { FomoClient } from "./fomo/client.ts";
 import { FomoStream } from "./fomo/stream.ts";
 import { Engine } from "./engine.ts";
@@ -17,7 +18,7 @@ export async function startScanner() {
 
   const fomo = new FomoClient();
   const engine = new Engine(fomo, executorFor(config.mode));
-  console.log(`[boot] mode=${config.mode} executor=${executorFor(config.mode).name}`);
+  banner(`mode=${config.mode}  executor=${executorFor(config.mode).name}`);
 
   await engine.loadWatchlist(100);
   const timers = [

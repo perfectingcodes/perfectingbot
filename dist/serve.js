@@ -7,9 +7,9 @@
  * cannot start.
  */
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, extname, basename } from "node:path";
 import { loadRecent } from "./report.js";
 import { traderStats, tokenStats, gateStats, summary } from "./analytics.js";
 import { config } from "./config.js";
@@ -40,6 +40,32 @@ function filtered(url) {
             r.setup.buyers.some((b) => (b.handle ?? "").toLowerCase().includes(q) || b.wallet.toLowerCase().includes(q)));
     }
     return rows;
+}
+const MIME = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
+    ".webp": "image/webp", ".svg": "image/svg+xml", ".ico": "image/x-icon",
+};
+/**
+ * Serves public/assets/* so you can drop an avatar.png or banner.png in and have the
+ * dashboard pick it up. This binds to 0.0.0.0, so the path is flattened to a bare
+ * filename and re-resolved under the assets root — a request can't climb out of it
+ * with ../ or an absolute path, and only known image types are served at all.
+ */
+function serveAsset(res, pathname) {
+    const name = basename(decodeURIComponent(pathname.slice("/assets/".length)));
+    const ext = extname(name).toLowerCase();
+    const type = MIME[ext];
+    if (!name || !type)
+        return false;
+    const root = resolve(publicDir, "assets");
+    const file = resolve(root, name);
+    if (!file.startsWith(root + "/"))
+        return false;
+    if (!existsSync(file) || !statSync(file).isFile())
+        return false;
+    res.writeHead(200, { "content-type": type, "cache-control": "public, max-age=300" });
+    res.end(readFileSync(file));
+    return true;
 }
 const json = (res, body, status = 200) => {
     res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
@@ -84,6 +110,8 @@ export function createDashboardServer() {
                     return res.end(html);
                 }
                 default:
+                    if (url.pathname.startsWith("/assets/") && serveAsset(res, url.pathname))
+                        return;
                     res.writeHead(404, { "content-type": "text/plain" });
                     return res.end("not found");
             }

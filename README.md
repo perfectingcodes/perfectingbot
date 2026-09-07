@@ -1,4 +1,4 @@
-# perfectingbot
+# perfecting
 
 Scans meme-coin pairs on **Robinhood Chain (4663)** and **BNB Chain (56)**, scores them against
 a tiered evidence model, and explains every verdict in plain English.
@@ -25,6 +25,26 @@ npm run dev        # dashboard on :5173 + scanner (scanner needs a key)
 
 `state/setups.jsonl` is the single source of truth. The dashboard is a view over it, so
 the scanner never renders HTML on the hot path, and the dashboard works with the scanner off.
+
+## Look
+
+Black ground, terminal green, Matrix rain, and the Creation-of-Adam reaching-hands motif
+from the banner — drawn as an SVG halftone rather than shipped as an image, so it stays
+crisp at any size and costs no request. The rain runs at ~18fps on a `<canvas>` behind
+everything, pauses when the tab is hidden, and is disabled entirely under
+`prefers-reduced-motion`. It sits at 16% opacity because this is a dashboard first:
+verdict colours (green / amber / red) stay distinct against the green chrome.
+
+The same motif prints in the terminal on boot (`src/banner.ts`), with colour suppressed
+when stdout isn't a TTY or `NO_COLOR` is set.
+
+To use your own images, drop them into `public/assets/`:
+
+- `avatar.png` — appears next to the name in the header, automatically
+
+Only image types are served, by bare filename, from that directory only — the server
+binds to `0.0.0.0`, so the path is flattened and re-resolved under the assets root and
+a request can't climb out with `../`.
 
 ## Dashboard
 

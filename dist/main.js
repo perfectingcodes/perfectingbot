@@ -8,6 +8,9 @@
 import { startDashboard } from "./serve.js";
 import { startScanner } from "./scanner.js";
 import { config } from "./config.js";
+import { banner } from "./banner.js";
+if (!config.fomoKey)
+    banner("dashboard only");
 const server = startDashboard();
 let scanner = null;
 if (config.fomoKey) {
