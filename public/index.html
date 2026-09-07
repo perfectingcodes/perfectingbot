@@ -7,109 +7,124 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='20' font-weight='bold' fill='%2300ff41' text-anchor='middle'%3E%3E%3C/text%3E%3C/svg%3E">
 <style>
 :root{
-  --bg:#000; --panel:#050a06; --panel2:#0a120b; --line:#123018;
-  --fg:#c9f5d0; --dim:#5f9c6b; --faint:#2f5c39;
-  --ok:#00ff41; --warn:#ffb627; --bad:#ff3b30; --accent:#00ff41;
-  --glow:0 0 6px rgba(0,255,65,.45);
+  --bg:#07090a; --panel:#0d1011; --panel2:#121617; --line:#1c2224;
+  --fg:#e8ecea; --dim:#8b948f; --faint:#4d5754;
+  --ok:#2fd97a; --warn:#e0a33a; --bad:#ff5c5c; --accent:#2fd97a;
+  --r:10px;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);
-  font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace}
-/* Digital rain sits behind everything and never intercepts clicks. */
-#rain{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.16}
-header,.filters,main{position:relative;z-index:1}
-header{position:sticky;top:0;z-index:10;background:rgba(0,0,0,.92);backdrop-filter:blur(3px);
-  border-bottom:1px solid var(--line);padding:12px 20px 0}
-.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
-h1{font-size:15px;margin:0;letter-spacing:2px;color:var(--ok);text-shadow:var(--glow);
-  text-transform:lowercase}
-h1::before{content:"> ";color:var(--faint);text-shadow:none}
-h1::after{content:"_";animation:blink 1.1s step-end infinite;color:var(--ok)}
+  font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;
+  -webkit-font-smoothing:antialiased}
+
+/* ---- hero: your banner behind, your avatar in front ---- */
+.hero{position:relative;border-bottom:1px solid var(--line);overflow:hidden}
+.hero .bg{position:absolute;inset:0;background:#000 center/cover no-repeat;opacity:.5}
+.hero .veil{position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(7,9,10,.35) 0%,rgba(7,9,10,.82) 62%,var(--bg) 100%)}
+.identity{position:relative;display:flex;align-items:center;gap:14px;padding:26px 22px 16px;max-width:1500px}
+.avatar{width:60px;height:60px;border-radius:14px;object-fit:cover;flex:none;
+  border:1px solid rgba(255,255,255,.14);background:var(--panel2);
+  box-shadow:0 6px 22px rgba(0,0,0,.6), 0 0 0 4px rgba(47,217,122,.07)}
+.avatar.placeholder{display:grid;place-items:center;color:var(--faint);font-size:9px;
+  text-align:center;line-height:1.35;padding:5px;border-style:dashed}
+h1{font-size:19px;margin:0;letter-spacing:1.5px;font-weight:600}
+h1 .cursor{color:var(--accent);animation:blink 1.4s step-end infinite;font-weight:400}
 @keyframes blink{50%{opacity:0}}
-.avatar{width:30px;height:30px;border:1px solid var(--line);border-radius:4px;object-fit:cover;
-  image-rendering:pixelated;box-shadow:var(--glow)}
-.status{font-size:11px;color:var(--dim)}
-.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
-.dot.on{background:var(--ok);box-shadow:var(--glow);animation:pulse 2s ease-in-out infinite}
+.tagline{color:var(--dim);font-size:11px;margin-top:2px;letter-spacing:.4px}
+.status{font-size:11px;color:var(--dim);margin-top:5px}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.dot.on{background:var(--ok);box-shadow:0 0 8px rgba(47,217,122,.7)}
 .dot.off{background:var(--faint)}
-@keyframes pulse{50%{opacity:.35}}
-nav{display:flex;gap:2px;margin-top:12px}
+
+nav{position:relative;display:flex;gap:2px;padding:0 22px;max-width:1500px}
 nav button{background:none;border:0;border-bottom:2px solid transparent;color:var(--dim);
-  padding:8px 14px;cursor:pointer;font:inherit;font-size:12px}
+  padding:9px 14px;cursor:pointer;font:inherit;font-size:12px;letter-spacing:.3px;transition:color .15s}
 nav button:hover{color:var(--fg)}
-nav button[aria-selected="true"]{color:var(--ok);border-bottom-color:var(--accent);text-shadow:var(--glow)}
-.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:11px 20px;
-  border-bottom:1px solid var(--line);background:rgba(5,10,6,.92)}
+nav button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+
+.sticky{position:sticky;top:0;z-index:10;background:rgba(7,9,10,.94);backdrop-filter:blur(8px)}
+.filters{display:flex;gap:9px;flex-wrap:wrap;align-items:center;padding:11px 22px;
+  border-bottom:1px solid var(--line)}
 select,input{background:var(--panel2);border:1px solid var(--line);color:var(--fg);
-  border-radius:4px;padding:5px 8px;font:inherit;font-size:12px}
-select:focus,input:focus{outline:none;border-color:var(--ok);box-shadow:var(--glow)}
-input[type=search]{min-width:200px}
-label{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:5px}
-main{padding:18px 20px 60px;max-width:1500px}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px}
-.tile{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:11px 13px}
-.tile .k{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.8px}
-.tile .v{font-size:21px;font-weight:600;margin-top:3px;text-shadow:var(--glow)}
+  border-radius:7px;padding:5px 9px;font:inherit;font-size:12px;transition:border-color .15s}
+select:focus,input:focus{outline:none;border-color:var(--accent)}
+input[type=search]{min-width:210px}
+label{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:6px}
+main{padding:20px 22px 70px;max-width:1500px}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:10px;margin-bottom:20px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.tile .k{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.9px}
+.tile .v{font-size:22px;font-weight:600;margin-top:4px}
 .tile .v.ok{color:var(--ok)}.tile .v.warn{color:var(--warn)}.tile .v.bad{color:var(--bad)}
-.card{border:1px solid var(--line);border-left-width:3px;border-radius:6px;margin-bottom:8px;
-  background:rgba(5,10,6,.9)}
-.card.SETUP{box-shadow:inset 0 0 30px rgba(0,255,65,.05)}
-.card.SETUP{border-left-color:var(--ok)}.card.WATCH{border-left-color:var(--warn)}.card.REJECT{border-left-color:var(--bad)}
-summary{padding:11px 14px;cursor:pointer;display:flex;gap:11px;align-items:center;flex-wrap:wrap;list-style:none}
+
+.card{border:1px solid var(--line);border-left-width:2px;border-radius:var(--r);
+  margin-bottom:8px;background:var(--panel);transition:border-color .15s}
+.card:hover{border-color:#2a3234}
+.card.SETUP{border-left-color:var(--ok)}
+.card.WATCH{border-left-color:var(--warn)}
+.card.REJECT{border-left-color:var(--bad)}
+summary{padding:12px 15px;cursor:pointer;display:flex;gap:12px;align-items:center;flex-wrap:wrap;list-style:none}
 summary::-webkit-details-marker{display:none}
-.badge{font-size:10px;padding:2px 7px;border-radius:3px;letter-spacing:.7px;background:#21262d;color:var(--dim)}
-.SETUP .badge{background:rgba(63,185,80,.14);color:var(--ok)}
-.WATCH .badge{background:rgba(210,153,34,.14);color:var(--warn)}
-.REJECT .badge{background:rgba(248,81,73,.14);color:var(--bad)}
-.score{font-size:17px;font-weight:700;min-width:32px;text-align:right}
-.SETUP .score{color:var(--ok);text-shadow:var(--glow)}
-.sym{font-weight:600}
-.chip{font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:10px;padding:1px 7px}
+.badge{font-size:10px;padding:2px 8px;border-radius:20px;letter-spacing:.7px;background:var(--panel2);color:var(--dim)}
+.SETUP .badge{background:rgba(47,217,122,.12);color:var(--ok)}
+.WATCH .badge{background:rgba(224,163,58,.12);color:var(--warn)}
+.REJECT .badge{background:rgba(255,92,92,.11);color:var(--bad)}
+.score{font-size:18px;font-weight:600;min-width:32px;text-align:right}
+.SETUP .score{color:var(--ok)}
+.sym{font-weight:600;letter-spacing:.3px}
+.chip{font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:20px;padding:1px 8px}
 .head{color:var(--dim);flex:1;min-width:220px}
 time{color:var(--faint);font-size:11px;white-space:nowrap}
-.body{padding:0 14px 14px}
-.meta{color:var(--dim);font-size:11px;padding:8px 0 12px;border-top:1px solid var(--line);word-break:break-all}
-.tier h4{margin:13px 0 6px;font-size:10px;color:var(--faint);letter-spacing:1.2px;text-transform:uppercase}
-.ck{display:flex;gap:9px;padding:3px 0;align-items:baseline}
+.body{padding:0 15px 15px}
+.meta{color:var(--dim);font-size:11px;padding:9px 0 12px;border-top:1px solid var(--line);word-break:break-all}
+.tier h4{margin:14px 0 7px;font-size:10px;color:var(--faint);letter-spacing:1.3px;text-transform:uppercase}
+.ck{display:flex;gap:10px;padding:3px 0;align-items:baseline}
 .ck b{min-width:118px;font-weight:500}.ck .says{color:var(--dim);flex:1}
 .mk{width:11px;text-align:center}
 .ck.pass .mk{color:var(--ok)}.ck.warn .mk{color:var(--warn)}
 .ck.fail .mk{color:var(--bad)}.ck.unknown .mk{color:var(--faint)}
 .ck em{color:var(--bad);font-style:normal;font-size:10px;letter-spacing:.5px}
+
 table{width:100%;border-collapse:collapse;font-size:12px}
-th{text-align:left;color:var(--dim);font-weight:500;font-size:10px;letter-spacing:.8px;
-  text-transform:uppercase;padding:7px 9px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
+th{text-align:left;color:var(--dim);font-weight:500;font-size:10px;letter-spacing:.9px;
+  text-transform:uppercase;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
 th:hover{color:var(--fg)}
-td{padding:8px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 tr:hover td{background:var(--panel2)}
-.bar{height:5px;background:var(--panel2);border-radius:3px;overflow:hidden;min-width:52px}
+.bar{height:5px;background:var(--panel2);border-radius:3px;overflow:hidden;min-width:54px}
 .bar i{display:block;height:100%;background:var(--ok)}
 .spark{display:flex;gap:2px;align-items:flex-end;height:22px}
 .spark i{width:5px;border-radius:1px;background:var(--faint)}
 .spark i.SETUP{background:var(--ok)}.spark i.WATCH{background:var(--warn)}.spark i.REJECT{background:var(--bad)}
-.empty{color:var(--dim);padding:14px 0 36px;text-align:center}
-/* The banner motif: two dot-matrix hands reaching, terminal text between them. */
-.splash{display:block;margin:26px auto 8px;max-width:620px;width:100%}
-.splash .hand{fill:var(--fg);opacity:.55}
-.splash .say{fill:var(--ok);font:bold 26px ui-monospace,monospace;letter-spacing:1px}
-@media (prefers-reduced-motion:no-preference){
-  .splash .say{animation:flicker 3.5s ease-in-out infinite}
-  @keyframes flicker{0%,100%{opacity:1}47%{opacity:1}50%{opacity:.55}53%{opacity:1}}
-}
-.note{background:rgba(5,10,6,.9);border:1px solid var(--line);border-left:3px solid var(--accent);
-  border-radius:6px;padding:11px 14px;margin-bottom:16px;color:var(--dim);font-size:12px}
+
+.empty{color:var(--dim);padding:10px 0 40px;text-align:center}
+.note{background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--accent);
+  border-radius:var(--r);padding:12px 15px;margin-bottom:16px;color:var(--dim);font-size:12px}
 .note b{color:var(--fg)}
 .mono{color:var(--faint);font-size:11px}
 a{color:var(--accent)}
+
+/* Empty-state hero uses your banner image at full width. */
+.showcase{display:block;margin:22px auto 6px;max-width:760px;width:100%;border-radius:var(--r);
+  border:1px solid var(--line);opacity:.9}
+.showcase-fallback{max-width:760px;margin:22px auto 6px;padding:44px 20px;text-align:center;
+  border:1px dashed var(--line);border-radius:var(--r);color:var(--faint);font-size:12px;line-height:1.9}
 </style>
 </head>
 <body>
-<canvas id="rain"></canvas>
-<header>
-  <div class="brand">
-    <img class="avatar" id="avatar" alt="" hidden>
-    <h1>perfecting</h1>
-    <span class="status" id="status">loading…</span>
+<div class="hero">
+  <div class="bg" id="hero-bg"></div>
+  <div class="veil"></div>
+  <div class="identity">
+    <img class="avatar" id="avatar" alt="perfecting avatar" hidden>
+    <div class="avatar placeholder" id="avatar-ph">add<br>avatar.png</div>
+    <div>
+      <h1>perfecting<span class="cursor">_</span></h1>
+      <div class="tagline">meme-coin setup scanner · robinhood chain + bnb</div>
+      <div class="status" id="status">loading…</div>
+    </div>
   </div>
   <nav id="tabs">
     <button data-tab="opps" aria-selected="true">Opportunities</button>
@@ -118,8 +133,9 @@ a{color:var(--accent)}
     <button data-tab="gates" aria-selected="false">Gates</button>
     <button data-tab="config" aria-selected="false">Config</button>
   </nav>
-</header>
+</div>
 
+<div class="sticky">
 <div class="filters">
   <label>chain <select id="f-chain"><option value="all">all</option><option>robinhood</option><option>bsc</option></select></label>
   <label>verdict <select id="f-label"><option value="all">all</option><option>SETUP</option><option>WATCH</option><option>REJECT</option></select></label>
@@ -127,6 +143,7 @@ a{color:var(--accent)}
   <label>window <select id="f-since"><option value="0">all time</option><option value="1">1h</option><option value="6">6h</option><option value="24">24h</option><option value="168">7d</option></select></label>
   <input type="search" id="f-q" placeholder="token, address, or trader…">
   <label><input type="checkbox" id="f-auto" checked> auto-refresh</label>
+</div>
 </div>
 
 <main>
@@ -137,7 +154,7 @@ a{color:var(--accent)}
   <div id="view-config" hidden></div>
 </main>
 
-<script>
+<script type="module">
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const MARK = { pass:"✓", warn:"!", fail:"✗", unknown:"?" };
@@ -189,7 +206,7 @@ async function renderOpps() {
     <div class="tile"><div class="k">blind spots / eval</div><div class="v">${sum.blindSpotsPerEval}</div></div>
   </div>`;
 
-  if (!rows.length) { $("#view-opps").innerHTML = tiles + splash("Hello World") +
+  if (!rows.length) { $("#view-opps").innerHTML = tiles + showcase() +
       `<div class="empty">No evaluations match these filters.</div>`; return; }
 
   $("#view-opps").innerHTML = tiles + rows.map(r => {
@@ -363,89 +380,38 @@ document.querySelector(".filters").addEventListener("input", () => {
 });
 
 /**
- * The banner motif, drawn rather than embedded: two dot-matrix hands reaching toward
- * each other with terminal text between them. The halftone comes from an SVG <pattern>
- * of dots used as the fill, so it stays crisp at any size and costs no image request.
+ * Your images drive the identity. Both are optional: the UI degrades to a labelled
+ * placeholder telling you exactly which file is missing, so nothing looks broken
+ * before you've dropped them in.
  */
-function splash(text = "Hello World") {
-  return `<svg class="splash" viewBox="0 0 620 200" role="img" aria-label="${esc(text)}">
-    <defs>
-      <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
-        <circle cx="1.7" cy="1.7" r="1.2" fill="#fff"/>
-      </pattern>
-      <mask id="dotmask">
-        <rect width="620" height="200" fill="url(#dots)"/>
-      </mask>
-    </defs>
-    <g mask="url(#dotmask)">
-      <!-- left arm, index finger extended to the right -->
-      <path class="hand" d="M0,26 L70,20 C104,17 132,26 150,42
-        L154,50 L214,58 C226,60 232,64 232,69 C232,74 226,77 214,77
-        L170,74 L168,82 L196,88 C204,90 207,93 206,97 C205,101 200,102 192,101
-        L160,95 L158,101 L182,108 C189,110 191,113 190,117 C188,121 183,121 176,119
-        L146,110 C132,120 112,125 88,123 L0,114 Z"/>
-      <!-- right arm, index finger extended to the left -->
-      <path class="hand" d="M620,174 L550,180 C516,183 488,174 470,158
-        L466,150 L406,142 C394,140 388,136 388,131 C388,126 394,123 406,123
-        L450,126 L452,118 L424,112 C416,110 413,107 414,103 C415,99 420,98 428,99
-        L460,105 L462,99 L438,92 C431,90 429,87 430,83 C432,79 437,79 444,81
-        L474,90 C488,80 508,75 532,77 L620,86 Z"/>
-    </g>
-    <text class="say" x="310" y="106" text-anchor="middle">${esc(text)}</text>
-  </svg>`;
+const ASSETS = { avatar: "/assets/avatar.png", banner: "/assets/banner.png" };
+const have = { avatar: false, banner: false };
+
+async function loadIdentity() {
+  const { avatar: a = false, banner: b = false } =
+    await fetch("/api/assets").then(r => r.json()).catch(() => ({}));
+  have.avatar = a; have.banner = b;
+
+  if (a) {
+    const img = $("#avatar");
+    img.src = ASSETS.avatar;
+    img.hidden = false;
+    $("#avatar-ph").style.display = "none";
+  }
+  if (b) $("#hero-bg").style.backgroundImage = `url("${ASSETS.banner}")`;
 }
 
-/** Matrix rain. Low opacity, pauses when the tab is hidden, off under reduced-motion. */
-(function matrixRain() {
-  const canvas = $("#rain");
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reduce) { canvas.hidden = true; return; }
-  const ctx = canvas.getContext("2d", { alpha: true });
-  const GLYPHS = "01アイウエオカキクケコサシスセソタチツテトナニヌネノ<>{}[]/\\|=+*#$%&@";
-  let cols = 0, drops = [], size = 14, raf = 0, last = 0;
+/** Empty state: your banner, full width, instead of a wall of text. */
+function showcase() {
+  if (have.banner) return `<img class="showcase" src="${ASSETS.banner}" alt="">`;
+  return `<div class="showcase-fallback">
+    drop <b style="color:var(--dim)">banner.png</b> and <b style="color:var(--dim)">avatar.png</b>
+    into <b style="color:var(--dim)">public/assets/</b><br>
+    they'll appear here and in the header automatically
+  </div>`;
+}
 
-  function resize() {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    canvas.width = innerWidth * dpr;
-    canvas.height = innerHeight * dpr;
-    canvas.style.width = innerWidth + "px";
-    canvas.style.height = innerHeight + "px";
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    cols = Math.ceil(innerWidth / size);
-    drops = Array.from({ length: cols }, () => Math.random() * -60);
-  }
-
-  function frame(ts) {
-    raf = requestAnimationFrame(frame);
-    if (ts - last < 55) return;         // ~18fps is plenty and keeps the CPU quiet
-    last = ts;
-    ctx.fillStyle = "rgba(0,0,0,0.09)";  // trail decay
-    ctx.fillRect(0, 0, innerWidth, innerHeight);
-    ctx.font = size + "px ui-monospace, monospace";
-    for (let i = 0; i < cols; i++) {
-      const ch = GLYPHS[(Math.random() * GLYPHS.length) | 0];
-      const y = drops[i] * size;
-      ctx.fillStyle = Math.random() < 0.06 ? "#c9f5d0" : "#00ff41";
-      ctx.fillText(ch, i * size, y);
-      if (y > innerHeight && Math.random() > 0.975) drops[i] = 0;
-      drops[i]++;
-    }
-  }
-
-  addEventListener("resize", resize);
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
-    else if (!raf) raf = requestAnimationFrame(frame);
-  });
-  resize();
-  raf = requestAnimationFrame(frame);
-})();
-
-// Show the user's own avatar in the header if they dropped one into public/assets/.
-fetch("/assets/avatar.png", { method: "HEAD" })
-  .then(r => { if (r.ok) { const a = $("#avatar"); a.src = "/assets/avatar.png"; a.hidden = false; } })
-  .catch(() => {});
-
+await loadIdentity();
 refresh();
 setInterval(() => { if ($("#f-auto").checked) refresh(); }, 10000);
 </script>

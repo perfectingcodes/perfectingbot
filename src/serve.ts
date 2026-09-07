@@ -77,6 +77,13 @@ export function createDashboardServer() {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
     try {
       switch (url.pathname) {
+        case "/api/assets": {
+          // One probe instead of a HEAD per file, so a fresh install doesn't spray
+          // 404s into the console before the images are added.
+          const root = resolve(publicDir, "assets");
+          const has = (n: string) => existsSync(join(root, n));
+          return json(res, { avatar: has("avatar.png"), banner: has("banner.png") });
+        }
         case "/api/health":
           return json(res, { ok: true, scanner: Boolean(config.fomoKey), mode: config.mode, evaluations: loadRecent(5000).length });
         case "/api/summary":

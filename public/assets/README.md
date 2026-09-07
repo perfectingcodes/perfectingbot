@@ -1,7 +1,16 @@
-Drop your own images here and the dashboard picks them up automatically:
+# Drop your images here
 
-- `avatar.png` — shown next to the name in the header
-- `banner.png` — optional, not currently rendered
+Two files, exact names:
 
-Only image files are served (png/jpg/gif/webp/svg/ico), by bare filename, from this
-directory only. Anything else 404s.
+| file | where it appears |
+|---|---|
+| `avatar.png` | the agent's face — header, next to the name |
+| `banner.png` | hero background behind the header, and the empty-state showcase |
+
+`.jpg`, `.gif`, `.webp` and `.svg` also work if you rename the extension in
+`ASSETS` at the bottom of `public/index.html`.
+
+Until they exist the UI shows a labelled placeholder rather than a broken image,
+so nothing looks wrong before you've added them.
+
+Only image types are served, by bare filename, from this directory only.
