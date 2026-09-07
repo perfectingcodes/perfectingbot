@@ -75,7 +75,7 @@ console.log("\nSolana RPC");
                     warn("solana: concentration returned no data");
             }
             catch {
-                bad("solana: getTokenLargestAccounts rejected by this RPC — holder concentration will read as unmeasured. Set SOLANA_RPC_URL to a dedicated provider (Helius / QuickNode / Triton).");
+                bad("solana: getTokenLargestAccounts rejected by this RPC — concentration AND bundling both read as unmeasured, leaving only the two authority checks. Set SOLANA_RPC_URL to a dedicated provider (Helius / QuickNode / Triton).");
             }
         }
         catch (e) {

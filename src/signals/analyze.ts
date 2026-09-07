@@ -8,7 +8,7 @@ import { runGates } from "./gates.ts";
 import { ev, fromGate, type Evidence } from "./evidence.ts";
 import type { SocialTracker } from "./social.ts";
 import { isEvm, type TradeEvent } from "../types.ts";
-import { mintInfo, concentration } from "../chain/solana.ts";
+import { mintInfo, concentration, bundling } from "../chain/solana.ts";
 
 export interface TraderQuality { handle?: string; rank?: number; pnlUsd?: number; window?: string; bookUsd?: number }
 export interface Buy { wallet: string; handle?: string; usdValue: number; at: number }
@@ -185,15 +185,27 @@ async function solanaTierOne(out: Evidence[], trigger: TradeEvent) {
 
   try {
     const conc = await concentration(mint);
-    out.push(ev(1, "sol-concentration",
+    out.push(ev(1, "concentration",
       conc.top10Percent === null ? "unknown" : conc.top10Percent <= config.gates.maxTop10Percent ? "pass" : "fail",
       conc.top10Percent === null ? "could not read largest token accounts"
         : `top 10 accounts hold ${conc.top10Percent.toFixed(1)}% (max ${config.gates.maxTop10Percent}%) — accounts, not people, so this understates`,
       { share: 0.14, veto: true }));
+
+    // Derived from the same call — no extra RPC, which matters on a rate-limited endpoint.
+    if (conc.shares.length) {
+      const b = bundling(conc.shares);
+      out.push(ev(1, "bundling", b.suspicious ? "fail" : "pass", b.detail, { share: 0.12, veto: true }));
+    } else {
+      out.push(ev(1, "bundling", "unknown", "no balances available to judge distribution", { share: 0.12 }));
+    }
   } catch (err) {
-    out.push(ev(1, "sol-concentration", "unknown", `largest-accounts read failed: ${String(err).slice(0, 100)}`, { share: 0.14 }));
+    const why = String(err).slice(0, 100);
+    out.push(ev(1, "concentration", "unknown", `largest-accounts read failed: ${why}`, { share: 0.14 }));
+    out.push(ev(1, "bundling", "unknown", "distribution unreadable — same failed call", { share: 0.12 }));
   }
 
-  out.push(ev(1, "bundling", "unknown",
-    "launch-bundling and same-funder analysis is not implemented for Solana yet", { share: 0.14 }));
+  // Pool depth needs a DEX index we do not have on Solana. It is scored as a blind spot
+  // rather than waved through: an unverified veto gate must never award points.
+  out.push(ev(1, "liquidity", "unknown",
+    "pool depth not verified on Solana — no DEX index wired up", { share: 0.16, veto: true }));
 }

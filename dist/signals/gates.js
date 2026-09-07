@@ -35,8 +35,11 @@ export async function runGates(fomo, trigger, tokenPriceUsd) {
     }
     // Liquidity + tradability, straight from chain state. EVM only: pool discovery works
     // by reading the trigger tx's Swap log, which has no Solana analogue here.
+    // Solana pool depth is handled in solanaTierOne as explicit unknown evidence — it must
+    // never be emitted here as a passing gate, because this one is a veto and a free pass
+    // on a veto is worse than no check at all.
     if (!isEvm(trigger.chain)) {
-        gates.push({ name: "liquidity", passed: true, detail: "pool depth not verified on Solana — see sol-concentration and the mint authorities" });
+        // no liquidity gate for Solana
     }
     else if (trigger.txHash) {
         try {

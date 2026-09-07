@@ -18,20 +18,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * a failure into "unknown" evidence, never into a pass. Set SOLANA_RPC_URL to a
  * dedicated provider before trusting this in production.
  */
-async function rpc(method, params) {
+async function rpc(method, params, opts = {}) {
+    const { attempts = 4, timeoutMs = 10_000 } = opts;
     let last = "";
-    for (let attempt = 0; attempt < 4; attempt++) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
         try {
             const res = await fetch(config.chains.solana.rpc, {
                 method: "POST",
                 headers: { "content-type": "application/json" },
                 body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
-                signal: AbortSignal.timeout(10_000),
+                signal: AbortSignal.timeout(timeoutMs),
             });
             if (res.status === 429 || res.status >= 500) {
                 const ra = Number(res.headers.get("retry-after"));
                 last = `HTTP ${res.status}`;
-                await sleep(Number.isFinite(ra) && ra > 0 ? ra * 1000 : 500 * 2 ** attempt + Math.random() * 250);
+                // Cap the honoured retry-after: a refusing endpoint sometimes asks for minutes.
+                const waitMs = Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 2_000) : 400 * 2 ** attempt + Math.random() * 200;
+                await sleep(waitMs);
                 continue;
             }
             if (!res.ok)
@@ -68,17 +71,78 @@ export async function mintInfo(mint) {
  * top-10 concentration read, but note it is *accounts*, not people — one actor can
  * hold across many accounts, so this can only ever understate concentration.
  */
+/**
+ * Circuit breaker. Public Solana RPCs refuse getTokenLargestAccounts outright rather than
+ * throttling it, so retrying costs ~7s per token and never succeeds. After a few straight
+ * failures we stop asking for a while instead of taxing every evaluation.
+ */
+const breaker = { fails: 0, openUntil: 0 };
+const BREAKER_TRIP = 2;
+const BREAKER_COOLDOWN_MS = 10 * 60_000;
 export async function concentration(mint) {
-    const [largest, supplyRes] = await Promise.all([
-        rpc("getTokenLargestAccounts", [mint, { commitment: "confirmed" }]),
-        rpc("getTokenSupply", [mint, { commitment: "confirmed" }]),
-    ]);
+    if (Date.now() < breaker.openUntil) {
+        throw new Error("getTokenLargestAccounts disabled: this RPC refused it repeatedly (set SOLANA_RPC_URL to a dedicated provider)");
+    }
+    let largest, supplyRes;
+    try {
+        // Fewer attempts and a shorter timeout: this is the method public RPCs refuse, and
+        // a refusal must cost the scanner a second, not most of a minute.
+        const fast = { attempts: 2, timeoutMs: 4_000 };
+        [largest, supplyRes] = await Promise.all([
+            rpc("getTokenLargestAccounts", [mint, { commitment: "confirmed" }], fast),
+            rpc("getTokenSupply", [mint, { commitment: "confirmed" }], fast),
+        ]);
+        breaker.fails = 0;
+    }
+    catch (err) {
+        if (++breaker.fails >= BREAKER_TRIP) {
+            breaker.openUntil = Date.now() + BREAKER_COOLDOWN_MS;
+            console.warn(`[solana] getTokenLargestAccounts refused ${breaker.fails}x — pausing that check for ${BREAKER_COOLDOWN_MS / 60_000}m. Concentration and bundling will read as unmeasured until SOLANA_RPC_URL points at a dedicated provider.`);
+        }
+        throw err;
+    }
     const accounts = largest?.value ?? [];
     const total = Number(supplyRes?.value?.uiAmount ?? 0);
     if (!accounts.length || !total)
-        return { top10Percent: null, holdersSampled: accounts.length };
+        return { top10Percent: null, holdersSampled: accounts.length, shares: [] };
+    const shares = accounts.map((a) => Number(a.uiAmount ?? 0) / total).filter((n) => n > 0);
     const top10 = accounts.slice(0, 10).reduce((s, a) => s + Number(a.uiAmount ?? 0), 0);
-    return { top10Percent: (top10 / total) * 100, holdersSampled: accounts.length };
+    return { top10Percent: (top10 / total) * 100, holdersSampled: accounts.length, shares };
+}
+/**
+ * Solana's bundling tell, computed from the balances we already fetched — no extra RPC,
+ * which matters because the heavier history endpoints are exactly what public RPCs refuse.
+ *
+ * A bundled launch buys through many wallets in one transaction batch, so those wallets
+ * end up holding *near-identical* amounts. Organic buyers never cluster that tightly.
+ * Several top accounts within a couple of percent of each other, holding a meaningful
+ * slice of supply between them, is one actor wearing many hats.
+ */
+export function bundling(shares, tolerance = 0.02, minCluster = 3, minShare = 0.10) {
+    if (shares.length < minCluster) {
+        return { clusterSize: 0, clusterPercent: 0, suspicious: false, detail: "too few accounts to judge distribution" };
+    }
+    let best = { size: 0, pct: 0 };
+    for (let i = 0; i < shares.length; i++) {
+        const anchor = shares[i];
+        if (anchor <= 0)
+            continue;
+        // Group everything within `tolerance` of this anchor, relative to the anchor itself.
+        const group = shares.filter((s) => Math.abs(s - anchor) / anchor <= tolerance);
+        const pct = group.reduce((a, b) => a + b, 0);
+        if (group.length > best.size || (group.length === best.size && pct > best.pct)) {
+            best = { size: group.length, pct };
+        }
+    }
+    const suspicious = best.size >= minCluster && best.pct >= minShare;
+    return {
+        clusterSize: best.size,
+        clusterPercent: best.pct * 100,
+        suspicious,
+        detail: best.size >= minCluster
+            ? `${best.size} top accounts hold near-identical balances totalling ${(best.pct * 100).toFixed(1)}% of supply`
+            : "no cluster of near-identical top balances",
+    };
 }
 export async function reachable() {
     try {

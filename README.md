@@ -168,10 +168,20 @@ talks plain JSON-RPC (no `@solana/web3.js` — three read methods don't justify 
 | **freeze authority** | *the* Solana honeypot — if still live, the issuer can freeze your token account and stop you selling. Vetoes. |
 | **mint authority** | if still live, supply can be inflated out from under holders |
 | **top-10 concentration** | via `getTokenLargestAccounts`. Note it returns *accounts*, not people — one actor across many accounts means this can only ever **understate** concentration. Vetoes. |
+| **bundling** | derived from the same balances, so it costs no extra RPC. A bundled launch buys through many wallets in one batch, so those wallets end up holding *near-identical* amounts; organic buyers never cluster that tightly. Three or more top accounts within 2% of each other holding ≥10% between them is one actor wearing many hats. Vetoes. |
+| **liquidity** | **not verified on Solana** — there is no DEX index wired up. Scored as a blind spot, never as a pass. |
 
 Verified against mainnet: USDC reads both authorities live (Circle retains them), BONK reads
-both revoked. Launch-bundling and same-funder clustering are **not implemented for Solana
-yet**, and that check reports `unknown` — costing score — rather than quietly passing.
+both revoked.
+
+> An earlier cut of this emitted a *passing* liquidity gate on Solana with the note "not
+> verified". That was a free pass on a veto gate — strictly worse than no check, since it
+> awarded points for something nobody had checked. It is now explicit `unknown` evidence.
+
+**On a public Solana RPC you get the two authority checks and nothing else.**
+`api.mainnet-beta.solana.com` refuses `getTokenLargestAccounts` outright (not throttles —
+refuses), which takes concentration and bundling with it. A circuit breaker stops asking
+after two refusals so a refused check costs the scanner ~9s once rather than ~41s per token.
 
 ## What this depends on
 
