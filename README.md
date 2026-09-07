@@ -11,10 +11,41 @@ It flags setups. It does not place trades — see [Execution](#execution).
 npm install
 npm run replay     # offline: proves the decision logic, no key or RPC needed
 npm run doctor     # preflight: RPCs, launchpad firehose, FOMO plan tier
-npm run dev        # live
+npm run dev        # dashboard on :5173 + scanner (scanner needs a key)
 ```
 
-`state/dashboard.html` is rewritten on every evaluation and auto-refreshes every 15s.
+| script | needs | does |
+|---|---|---|
+| `replay` | nothing | runs the decision logic on fixed scenarios |
+| `serve` | nothing | dashboard only |
+| `doctor` | RPCs (key optional) | preflight checks |
+| `dev` | key for the scanner half | dashboard + scanner |
+| `scanner` | key | scanner only, no web server |
+| `build` + `start` | key | compiled build, for hosting |
+
+`state/setups.jsonl` is the single source of truth. The dashboard is a view over it, so
+the scanner never renders HTML on the hot path, and the dashboard works with the scanner off.
+
+## Dashboard
+
+Five views at `http://localhost:5173`, all sharing the filter bar (chain, verdict,
+min score, time window, free-text search over tokens/addresses/traders):
+
+- **Opportunities** — every evaluation with its full evidence breakdown, tier by tier.
+- **Traders** — ranked by *hit rate in your own log*: the share of a trader's observed
+  buys that cleared every hard gate. That is a different question from PnL, and a more
+  useful one for deciding who to follow. Traders under 3 appearances are down-weighted
+  so one lucky call can't top the board. The FOMO leaderboard is shown separately below
+  it as the external view.
+- **Tokens** — one row per token with a sparkline of every evaluation over time, so you
+  can see a read change as evidence arrived.
+- **Gates** — which checks actually reject things. A gate that never fails isn't
+  protecting you; one that vetoes everything is mistuned. High `unknown` counts point at
+  a missing data source, which is usually the biggest available improvement.
+- **Config** — the live thresholds this process is running with.
+
+JSON API behind it: `/api/setups`, `/api/traders`, `/api/tokens`, `/api/gates`,
+`/api/summary`, `/api/leaderboard`, `/api/health` — all accept the same filter params.
 
 ## How it decides
 
@@ -91,6 +122,35 @@ least as tested as the entry.
 `RiskManager` sits in front of every executor regardless: buys are scaled to a fraction of
 the mirrored size (never dollar-for-dollar), clamped to a % of bankroll, capped by
 concurrent positions, gated by per-token cooldown, and halted by a daily-loss kill switch.
+
+## Hosting on Replit
+
+It works, with three things that are easy to get wrong:
+
+1. **Reserved VM, not Autoscale.** `.replit` sets `deploymentTarget = "vm"` deliberately.
+   Autoscale suspends idle instances, which kills the WebSocket stream — the dashboard
+   would keep loading while the scanner quietly saw nothing. This is the failure mode
+   worth avoiding, because it looks fine.
+2. **Put the key in Secrets, not `.env`.** Tools → Secrets → `FOMO_API_KEY`. Replit
+   injects secrets as environment variables, so `process.env.FOMO_API_KEY` picks them up
+   with no code change. Secrets added while the app is running are not seen by the running
+   process — Stop then Run, or `kill 1` in the shell. Never commit a `.env`; it's gitignored.
+3. **The filesystem is ephemeral.** A redeploy wipes `state/setups.jsonl` and your whole
+   tuning history with it. Set `STATE_DIR` to a mounted volume if you want it to survive.
+
+Secrets to set: `FOMO_API_KEY`, `RH_RPC_URL`, `BSC_RPC_URL`, optionally `MODE`,
+`BANKROLL_USD`, `ALERT_WEBHOOK_URL`, `SOCIAL_API_URL`.
+
+Replit's shared egress IPs make the public RPC rate-limiting *worse* than it is locally,
+and it already fails here — dedicated RPC URLs are not optional on a host.
+
+The build runs `tsc` and starts `dist/main.js`, so nothing depends on Node's experimental
+type-stripping. `src/ws-compat.ts` falls back to the `ws` package if the runtime has no
+global `WebSocket`, so an older Node on the host can't silently cost you the trade stream.
+
+`main.ts` starts the dashboard first and the scanner second: a missing key or a bad RPC
+takes down the scanner, not the web server, so a deploy never crash-loops on config and
+the dashboard tells you it's idle.
 
 ## Tuning
 

@@ -1,4 +1,5 @@
 import { config } from "../config.ts";
+import { resolveWebSocket } from "../ws-compat.ts";
 import type { Chain, TradeEvent } from "../types.ts";
 
 type Handler = (e: TradeEvent) => void;
@@ -15,6 +16,7 @@ export class FomoStream {
   private closed = false;
   private heartbeat?: NodeJS.Timeout;
   private lastMsgAt = Date.now();
+  private WS?: new (url: string) => WebSocket;
 
   private opts: { chain: Chain; endpoint?: "trades" | "alerts"; key?: string };
 
@@ -24,8 +26,9 @@ export class FomoStream {
 
   onTrade(h: Handler) { this.handlers.push(h); }
 
-  start() {
+  async start() {
     this.closed = false;
+    this.WS = await resolveWebSocket();
     this.connect();
   }
 
@@ -39,7 +42,8 @@ export class FomoStream {
     const endpoint = this.opts.endpoint ?? "trades";
     const key = this.opts.key ?? config.fomoKey;
     const url = `${config.fomoBase.replace("https://", "wss://")}/ws/${endpoint}?chain=${this.opts.chain}&key=${encodeURIComponent(key)}`;
-    const ws = new WebSocket(url);
+    if (!this.WS) throw new Error("FomoStream.start() must be awaited before connecting");
+    const ws = new this.WS(url);
     this.ws = ws;
 
     ws.addEventListener("open", () => {

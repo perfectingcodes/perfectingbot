@@ -1,0 +1,25 @@
+# Replit configuration.
+#
+# deploymentTarget = "vm" (Reserved VM) is required, not optional: the scanner holds
+# long-lived WebSocket connections and must keep running with no visitors. Autoscale
+# ("cloudrun") suspends idle instances, which silently kills the trade stream — the
+# dashboard would still load while the bot quietly saw nothing.
+
+modules = ["nodejs-22"]
+run = "npm run dev"
+
+[nix]
+channel = "stable-24_11"
+
+[deployment]
+deploymentTarget = "vm"
+build = ["npm", "run", "build"]
+run = ["npm", "start"]
+
+[[ports]]
+localPort = 5173
+externalPort = 80
+
+[env]
+# The dashboard binds to $PORT; Replit sets it. 5173 is only the local fallback.
+STATE_DIR = "state"
