@@ -9,6 +9,18 @@ interface CacheEntry { at: number; value: unknown }
 export class FomoClient {
   private cache = new Map<string, CacheEntry>();
   creditsUsed = 0;
+  /** Day-stamped spend, so the budget resets without needing a scheduler. */
+  private daySpent = 0;
+  private dayStamp = utcDay();
+
+  get spentToday() { this.rollDay(); return this.daySpent; }
+  get budgetLeft() { return Math.max(0, config.credits.dailyBudget - this.spentToday); }
+  get overBudget() { return this.budgetLeft <= 0; }
+
+  private rollDay() {
+    const d = utcDay();
+    if (d !== this.dayStamp) { this.dayStamp = d; this.daySpent = 0; }
+  }
 
   private key: string;
   private base: string;
@@ -43,6 +55,8 @@ export class FomoClient {
 
         const value = (await res.json()) as T;
         this.creditsUsed += cost;
+        this.rollDay();
+        this.daySpent += cost;
         this.cache.set(path, { at: Date.now(), value });
         return value;
       } catch (err) {
@@ -100,5 +114,6 @@ export interface LeaderTrader {
   verified?: boolean;
 }
 
+const utcDay = () => new Date().toISOString().slice(0, 10);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const backoff = (n: number) => Math.min(8_000, 400 * 2 ** n) + Math.random() * 250;

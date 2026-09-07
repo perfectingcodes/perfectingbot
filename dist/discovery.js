@@ -20,7 +20,8 @@ const NETWORK_ALIAS = {
 export class Discovery {
     lastSeen = new Map();
     timer;
-    stats = { cycles: 0, fetched: 0, queued: 0, skipped: 0, errors: 0 };
+    stats = { cycles: 0, fetched: 0, queued: 0, skipped: 0, errors: 0, budgetSkips: 0 };
+    warnedBudget = false;
     fomo;
     onCandidate;
     constructor(fomo, onCandidate) {
@@ -38,6 +39,16 @@ export class Discovery {
     }
     stop() { clearInterval(this.timer); }
     async cycle() {
+        // Discovery yields to the budget; the stream path keeps whatever is left.
+        if (this.fomo.overBudget) {
+            this.stats.budgetSkips++;
+            if (!this.warnedBudget) {
+                console.warn(`[discovery] daily credit budget spent (${this.fomo.spentToday}/${config.credits.dailyBudget}) — pausing until UTC midnight. Raise CREDIT_DAILY_BUDGET or widen DISCOVERY_INTERVAL_SEC.`);
+                this.warnedBudget = true;
+            }
+            return;
+        }
+        this.warnedBudget = false;
         this.stats.cycles++;
         let tokens = [];
         for (const board of config.discovery.boards) {
@@ -64,6 +75,8 @@ export class Discovery {
         for (const { t, chain } of ranked) {
             if (queued >= config.discovery.perCycle)
                 break;
+            if (this.fomo.overBudget)
+                break;
             const key = `${chain}:${t.token.address.toLowerCase()}`;
             const last = this.lastSeen.get(key) ?? 0;
             if (Date.now() - last < config.discovery.revisitMs) {
@@ -82,7 +95,7 @@ export class Discovery {
             }
         }
         if (queued)
-            console.log(`[discovery] cycle ${this.stats.cycles}: ${ranked.length} above floor, evaluated ${queued}`);
+            console.log(`[discovery] cycle ${this.stats.cycles}: ${ranked.length} above floor, evaluated ${queued} · credits today ${this.fomo.spentToday}/${config.credits.dailyBudget}`);
     }
     /** Board rows carry no trade, so the synthetic event has no wallet, tx or lead time. */
     toEvent(t, chain) {

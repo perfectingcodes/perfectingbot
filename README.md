@@ -134,9 +134,29 @@ card reads *"found by volume, not by a tracked wallet — no smart-money confirm
 all"*. That is deliberate: volume is a reason to look, never a reason to buy. Filter the
 dashboard by **found by → volume / smart money** to see each path on its own.
 
-Discovery is rate-aware: at most `DISCOVERY_PER_CYCLE` evaluations per cycle, and a token
-is not re-evaluated inside `DISCOVERY_REVISIT_MIN`. Both matter — every evaluation spends
-FOMO credits and RPC calls.
+### Discovery costs real money — read this before widening it
+
+Each evaluation spends ~3 FOMO credits (stats + holders + devs), and discovery never
+stops. The arithmetic is unforgiving:
+
+| interval | evals/cycle | credits/day | credits/month | fits |
+|---|---|---|---|---|
+| 90s | 8 | 24,960 | 748,800 | **nothing** — 15× Scale |
+| 300s | 4 | 4,032 | 120,960 | Scale |
+| **900s** | **3** | **1,056** | **31,680** | **Growth, Scale** ← default |
+
+My first cut at these defaults was 90s/8, which would have drained a Growth plan in two
+days. The shipped defaults are the bottom row.
+
+Two guards make that safe rather than merely documented:
+
+- `CREDIT_DAILY_BUDGET` (default 1,500) is a hard ceiling. Discovery pauses when it's
+  spent and resumes at UTC midnight. **The stream path is exempt** — it's the valuable
+  signal and fires rarely, so discovery yields its budget to it, never the reverse.
+- `DISCOVERY_REVISIT_MIN` stops the same token being re-evaluated on every cycle.
+
+`npm run doctor` prints your projected burn and which plan tiers it fits, so you find out
+before the bill does.
 
 ## Solana
 

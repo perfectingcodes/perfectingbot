@@ -4,6 +4,19 @@ const COST = { default: 1, alerts: 0.5, thesis: 5, wallet: 10 };
 export class FomoClient {
     cache = new Map();
     creditsUsed = 0;
+    /** Day-stamped spend, so the budget resets without needing a scheduler. */
+    daySpent = 0;
+    dayStamp = utcDay();
+    get spentToday() { this.rollDay(); return this.daySpent; }
+    get budgetLeft() { return Math.max(0, config.credits.dailyBudget - this.spentToday); }
+    get overBudget() { return this.budgetLeft <= 0; }
+    rollDay() {
+        const d = utcDay();
+        if (d !== this.dayStamp) {
+            this.dayStamp = d;
+            this.daySpent = 0;
+        }
+    }
     key;
     base;
     constructor(key = config.fomoKey, base = config.fomoBase) {
@@ -37,6 +50,8 @@ export class FomoClient {
                     throw new Error(`${res.status} from ${path}: ${(await res.text()).slice(0, 200)}`);
                 const value = (await res.json());
                 this.creditsUsed += cost;
+                this.rollDay();
+                this.daySpent += cost;
                 this.cache.set(path, { at: Date.now(), value });
                 return value;
             }
@@ -74,6 +89,7 @@ export class FomoClient {
         return this.get(`/v2/users/${handle}`, { ttlMs: 6 * 60 * 60_000, cost: COST.wallet });
     }
 }
+const utcDay = () => new Date().toISOString().slice(0, 10);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const backoff = (n) => Math.min(8_000, 400 * 2 ** n) + Math.random() * 250;
 //# sourceMappingURL=client.js.map

@@ -104,6 +104,19 @@ else {
   ok(`up to ${config.discovery.perCycle}/cycle above $${config.discovery.minVolume24hUsd.toLocaleString()} 24h volume, revisit after ${config.discovery.revisitMs / 60_000}m`);
   const unstreamed = config.discovery.networks.filter((c) => !config.streamChains.includes(c));
   if (unstreamed.length) ok(`${unstreamed.join(", ")} reached by discovery only — /ws/trades does not carry them`);
+
+  // Each evaluation costs ~3 credits (stats + holders + devs); each cycle also fetches the boards.
+  const cyclesPerDay = 86_400_000 / config.discovery.intervalMs;
+  const perCycle = config.discovery.boards.length + config.discovery.perCycle * 3;
+  const perDay = Math.round(cyclesPerDay * perCycle);
+  const perMonth = perDay * 30;
+  const budget = config.credits.dailyBudget;
+  const line = `projected burn ~${perDay.toLocaleString()} credits/day (~${perMonth.toLocaleString()}/month) against a ${budget.toLocaleString()}/day budget`;
+  if (perDay > budget) warn(`${line} — discovery will pause partway through each day. Widen DISCOVERY_INTERVAL_SEC or lower DISCOVERY_PER_CYCLE.`);
+  else ok(line);
+  const plans: [string, number][] = [["Starter", 10_000], ["Growth", 50_000], ["Scale", 200_000]];
+  const fits = plans.filter(([, c]) => perMonth <= c).map(([n]) => n);
+  ok(fits.length ? `fits plan tier: ${fits.join(", ")}` : `exceeds every published plan tier at these settings`);
 }
 
 console.log("\nConfig");

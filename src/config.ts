@@ -22,14 +22,26 @@ export const config = {
    */
   streamChains: ["robinhood", "solana"] as Chain[],
 
+  /**
+   * FOMO credit budget. Discovery is the expensive path — each evaluation costs ~3
+   * credits and the polling never stops — so it runs against a hard daily ceiling.
+   * Default 1,500/day fits a Growth plan (50k/month) with headroom.
+   *
+   * The stream path is exempt: it is the valuable signal and fires rarely, so
+   * discovery yields its budget to it rather than the other way round.
+   */
+  credits: {
+    dailyBudget: num(process.env.CREDIT_DAILY_BUDGET, 1_500),
+  },
+
   /** Volume-led discovery: which networks to poll, how often, and how deep. */
   discovery: {
     enabled: (process.env.DISCOVERY ?? "on") !== "off",
     networks: (process.env.DISCOVERY_NETWORKS ?? "robinhood,solana,base,bsc").split(",").map((s) => s.trim()).filter(Boolean) as Chain[],
     boards: (process.env.DISCOVERY_BOARDS ?? "trending,graduated").split(",").map((s) => s.trim()).filter(Boolean),
-    intervalMs: num(process.env.DISCOVERY_INTERVAL_SEC, 90) * 1000,
+    intervalMs: num(process.env.DISCOVERY_INTERVAL_SEC, 900) * 1000,
     /** Evaluate at most this many per cycle, highest 24h volume first. */
-    perCycle: num(process.env.DISCOVERY_PER_CYCLE, 8),
+    perCycle: num(process.env.DISCOVERY_PER_CYCLE, 3),
     minVolume24hUsd: num(process.env.DISCOVERY_MIN_VOLUME, 50_000),
     /** Don't re-evaluate the same token more often than this. */
     revisitMs: num(process.env.DISCOVERY_REVISIT_MIN, 20) * 60_000,
