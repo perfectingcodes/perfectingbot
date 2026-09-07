@@ -1,0 +1,15 @@
+{
+  "name": "perfectingbot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --experimental-strip-types src/index.ts",
+    "replay": "node --experimental-strip-types src/replay.ts",
+    "doctor": "node --env-file-if-exists=.env --experimental-strip-types src/doctor.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": { "viem": "^2.21.0" },
+  "devDependencies": { "typescript": "^5.6.0", "@types/node": "^22.7.0" }
+}
