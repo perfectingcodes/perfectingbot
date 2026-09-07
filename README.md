@@ -26,25 +26,49 @@ npm run dev        # dashboard on :5173 + scanner (scanner needs a key)
 `state/setups.jsonl` is the single source of truth. The dashboard is a view over it, so
 the scanner never renders HTML on the hot path, and the dashboard works with the scanner off.
 
-## Look
+## Design
 
-Black ground, terminal green, Matrix rain, and the Creation-of-Adam reaching-hands motif
-from the banner — drawn as an SVG halftone rather than shipped as an image, so it stays
-crisp at any size and costs no request. The rain runs at ~18fps on a `<canvas>` behind
-everything, pauses when the tab is hidden, and is disabled entirely under
-`prefers-reduced-motion`. It sits at 16% opacity because this is a dashboard first:
-verdict colours (green / amber / red) stay distinct against the green chrome.
+A dark-only system with an explicit token layer, built so the visual language carries
+information rather than decoration.
 
-The same motif prints in the terminal on boot (`src/banner.ts`), with colour suppressed
-when stdout isn't a TTY or `NO_COLOR` is set.
+**Colour is assigned by job, not by taste.**
 
-To use your own images, drop them into `public/assets/`:
+- **Status hues are reserved** for verdicts — good / warning / critical, used for
+  SETUP / WATCH / REJECT and for pass / warn / fail on individual checks. They are never
+  reused as a series colour, so a colour never impersonates a state.
+- **Three categorical hues** identify the tiers: blue (on-chain truth), orange (smart
+  money), aqua (social). These are the validated first three slots of the reference
+  categorical palette, and they were re-checked against *this* surface rather than
+  assumed — all-pairs CVD ΔE 9.4, normal-vision ΔE 20.9, all three ≥3:1 contrast.
+  Every meter is also directly labelled, so hue never carries identity alone.
+- **Brand green is chrome only** — wordmark, avatar ring, focus, active nav. It never
+  touches data, which keeps it clear of the status green.
+- **Unmeasured is grey, never green.** A blind spot must not read as a pass.
 
-- `avatar.png` — appears next to the name in the header, automatically
+The score is a plain number, not a gauge or donut: a single value's best chart is the
+number itself. The tier meters beside it are where the shape actually lives — three
+thin tracks showing earned/max per tier, so you can see *where* a score came from
+without expanding anything. Hovering any meter, sparkline bar, or gate mix segment
+gives you the underlying counts.
 
-Only image types are served, by bare filename, from that directory only — the server
-binds to `0.0.0.0`, so the path is flattened and re-resolved under the assets root and
-a request can't climb out with `../`.
+Layout is a fixed left rail (identity, nav with live counts, scanner status) against a
+scrolling main column with a sticky filter bar. Type is a sans stack for UI and mono
+strictly for data — addresses, scores, counts — which makes numbers line up and keeps
+prose readable. Reduced-motion is honoured; the whole thing collapses to a single
+column under 900px.
+
+Your own images drive the identity — drop them into `public/assets/`:
+
+| file | where it appears |
+|---|---|
+| `avatar.png` | the agent's face in the sidebar, and the browser tab icon |
+| `banner.png` | behind the sidebar identity block under a gradient veil, and as the empty-state showcase |
+
+Both are optional. `/api/assets` reports what exists in one call, and the UI falls back
+to a labelled placeholder naming the missing file rather than showing a broken image.
+
+The terminal gets the same identity: `src/banner.ts` prints an ASCII reaching-hands
+motif on boot, with colour suppressed when stdout isn't a TTY or `NO_COLOR` is set.
 
 ## Dashboard
 
