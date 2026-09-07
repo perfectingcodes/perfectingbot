@@ -97,7 +97,7 @@ function run() {
                 { wallet: "0xB", handle: "frankdegods", usdValue: 1800, at: now - 120_000 },
                 { wallet: "0xC", handle: "CryptoKaleo", usdValue: 950, at: now - 40_000 },
             ],
-            firstSeen: now - 300_000, leadMs: 1100, priceUsd: 0.0003136,
+            firstSeen: now - 300_000, leadMs: 1100, priceUsd: 0.0003136, source: "stream",
         };
         const a = assess(s.evidence);
         console.log(explain(setup, a));

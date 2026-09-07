@@ -58,6 +58,10 @@ export class FomoClient {
     tokenDevs(address) {
         return this.get(`/v2/token/${address}/devs`, { ttlMs: 30_000 });
     }
+    /** Token boards carry volume24hUsd and network — the input to volume-led discovery. */
+    tokenBoard(board, limit = 50) {
+        return this.get(`/v2/leaderboard/tokens/${board}?limit=${limit}`, { ttlMs: 45_000 });
+    }
     leaderboard(window = "7d") {
         return this.get(`/v2/leaderboard/${window}`, { ttlMs: 10 * 60_000 });
     }

@@ -1,7 +1,7 @@
-import { createPublicClient, http, defineChain } from "viem";
-import { bsc } from "viem/chains";
+import { createPublicClient, http, defineChain, type PublicClient } from "viem";
+import { bsc, base } from "viem/chains";
 import { config } from "../config.ts";
-import type { Chain } from "../types.ts";
+import type { EvmChain } from "../types.ts";
 
 /** Robinhood Chain: Arbitrum L2, ETH gas token, chain id 4663. */
 export const robinhoodChain = defineChain({
@@ -12,9 +12,13 @@ export const robinhoodChain = defineChain({
   blockExplorers: { default: { name: "Blockscout", url: "https://robinhoodchain.blockscout.com" } },
 });
 
-const clients = {
-  robinhood: createPublicClient({ chain: robinhoodChain, transport: http(config.chains.robinhood.rpc, { retryCount: 3, timeout: 8_000 }) }),
-  bsc: createPublicClient({ chain: bsc, transport: http(config.chains.bsc.rpc, { retryCount: 3, timeout: 8_000 }) }),
+const make = (chain: any, rpc: string) =>
+  createPublicClient({ chain, transport: http(rpc, { retryCount: 3, timeout: 8_000 }) }) as PublicClient;
+
+const clients: Record<EvmChain, PublicClient> = {
+  robinhood: make(robinhoodChain, config.chains.robinhood.rpc),
+  bsc: make(bsc, config.chains.bsc.rpc),
+  base: make(base, config.chains.base.rpc),
 };
 
-export const clientFor = (c: Chain) => clients[c];
+export const clientFor = (c: EvmChain) => clients[c];

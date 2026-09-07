@@ -1,6 +1,6 @@
 import type { Address } from "viem";
 import { clientFor } from "./clients.ts";
-import type { Chain } from "../types.ts";
+import type { EvmChain } from "../types.ts";
 
 /**
  * Public RPCs on both chains reject wide log queries — BSC with an explicit range limit,
@@ -18,7 +18,7 @@ export interface ChunkedLogs {
 }
 
 export async function getLogsChunked(
-  chain: Chain,
+  chain: EvmChain,
   args: { address?: Address; topics?: `0x${string}`[]; fromBlock: bigint; toBlock: bigint },
   opts: { initialRange?: bigint; minRange?: bigint; maxRequests?: number } = {},
 ): Promise<ChunkedLogs> {

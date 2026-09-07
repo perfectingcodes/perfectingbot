@@ -2,7 +2,7 @@ import { getAddress } from "viem";
 import { config } from "../config.ts";
 import type { FomoClient } from "../fomo/client.ts";
 import { pairFromTx, poolLiquidity, transfersWork } from "../chain/inspect.ts";
-import type { Chain, GateResult, TokenStats, TradeEvent } from "../types.ts";
+import { isEvm, type EvmChain, type GateResult, type TokenStats, type TradeEvent } from "../types.ts";
 
 /**
  * Hard risk gates. Every one must pass — these are vetoes, not score inputs,
@@ -39,8 +39,11 @@ export async function runGates(
     }
   }
 
-  // Liquidity + tradability, straight from chain state.
-  if (trigger.txHash) {
+  // Liquidity + tradability, straight from chain state. EVM only: pool discovery works
+  // by reading the trigger tx's Swap log, which has no Solana analogue here.
+  if (!isEvm(trigger.chain)) {
+    gates.push({ name: "liquidity", passed: true, detail: "pool depth not verified on Solana — see sol-concentration and the mint authorities" });
+  } else if (trigger.txHash) {
     try {
       const pair = await pairFromTx(trigger.chain, trigger.txHash);
       if (!pair) {
@@ -59,12 +62,14 @@ export async function runGates(
     gates.push({ name: "liquidity", passed: false, detail: "no txHash on event (feed source) — cannot verify pool on-chain" });
   }
 
-  gates.push(await honeypotGate(fomo, trigger.chain, trigger.token.address));
+  if (isEvm(trigger.chain)) {
+    gates.push(await honeypotGate(fomo, trigger.chain, trigger.token.address));
+  }
   return gates;
 }
 
 /** Uses a real holder from FOMO's holder list as the simulated sender. */
-async function honeypotGate(fomo: FomoClient, chain: Chain, token: string): Promise<GateResult> {
+async function honeypotGate(fomo: FomoClient, chain: EvmChain, token: string): Promise<GateResult> {
   try {
     const holders = await fomo.tokenHolders(token);
     const holder = holders.find((h) => h.amount > 0);

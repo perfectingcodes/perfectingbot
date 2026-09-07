@@ -8,8 +8,10 @@ import { clientFor } from "./chain/clients.ts";
 import { getLogsChunked } from "./chain/logs.ts";
 import { config } from "./config.ts";
 import { FomoClient } from "./fomo/client.ts";
-import type { Chain } from "./types.ts";
+import { reachable as solanaReachable } from "./chain/solana.ts";
+import { EVM_CHAINS, type EvmChain } from "./types.ts";
 
+const ENV_VAR: Record<EvmChain, string> = { robinhood: "RH_RPC_URL", bsc: "BSC_RPC_URL", base: "BASE_RPC_URL" };
 const pairCreated = parseAbiItem("event PairCreated(address indexed token0, address indexed token1, address pair, uint)");
 let failures = 0;
 const ok = (m: string) => console.log(`  ok    ${m}`);
@@ -17,7 +19,7 @@ const bad = (m: string) => { failures++; console.log(`  FAIL  ${m}`); };
 const warn = (m: string) => console.log(`  warn  ${m}`);
 
 console.log("\nRPC + launchpad firehose");
-for (const chain of ["robinhood", "bsc"] as Chain[]) {
+for (const chain of EVM_CHAINS as readonly EvmChain[]) {
   const client = clientFor(chain);
   try {
     const [id, head] = await Promise.all([client.getChainId(), client.getBlockNumber()]);
@@ -37,11 +39,38 @@ for (const chain of ["robinhood", "bsc"] as Chain[]) {
       incomplete ||= !res.complete;
       if (res.logs.length) ok(`${chain}: ${res.logs.length} ${label} pool creations in ${res.scannedBlocks} blocks`);
     }
-    if (limited) bad(`${chain}: RPC rate-limited during a routine log scan — the public endpoint cannot sustain tier-1 on-chain checks. Use a dedicated provider (Alchemy / Chainstack / OrbitFlare / SolidRPC / NodeFlare).`);
-    else if (incomplete) bad(`${chain}: RPC could not serve the full log range — set a dedicated ${chain === "robinhood" ? "RH_RPC_URL" : "BSC_RPC_URL"}.`);
+    if (limited) bad(`${chain}: RPC rate-limited during a routine log scan — the public endpoint cannot sustain tier-1 on-chain checks. Set ${ENV_VAR[chain]} to a dedicated provider (Alchemy / Chainstack / OrbitFlare / SolidRPC / NodeFlare).`);
+    else if (incomplete) bad(`${chain}: RPC could not serve the full log range — set a dedicated ${ENV_VAR[chain]}.`);
     else if (found === 0) warn(`${chain}: no pool creations in the scanned window (quiet period)`);
   } catch (e) {
     bad(`${chain}: unreachable at ${config.chains[chain].rpc} — ${String(e).slice(0, 120)}`);
+  }
+}
+
+console.log("\nSolana RPC");
+{
+  const r = await solanaReachable();
+  if (r.ok) {
+    ok(`solana: ${r.detail}`);
+    try {
+      // USDC mint: both authorities are set on it, so a correct read returns false/false.
+      const { mintInfo } = await import("./chain/solana.ts");
+      const info = await mintInfo("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+      if (info.decimals === 6) ok(`solana: mint + freeze authority reads work (control token, ${info.decimals} decimals)`);
+      else warn(`solana: control token returned decimals=${info.decimals}, expected 6`);
+
+      // getTokenLargestAccounts is far heavier and is the first thing a public RPC refuses.
+      const { concentration } = await import("./chain/solana.ts");
+      try {
+        const c = await concentration("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+        if (c.top10Percent !== null) ok(`solana: holder concentration readable (${c.holdersSampled} accounts sampled)`);
+        else warn("solana: concentration returned no data");
+      } catch {
+        bad("solana: getTokenLargestAccounts rejected by this RPC — holder concentration will read as unmeasured. Set SOLANA_RPC_URL to a dedicated provider (Helius / QuickNode / Triton).");
+      }
+    } catch (e) { bad(`solana: mint account read failed — ${String(e).slice(0, 140)}`); }
+  } else {
+    bad(`solana: unreachable at ${config.chains.solana.rpc} — ${r.detail}`);
   }
 }
 
@@ -66,6 +95,15 @@ if (!config.fomoKey) {
     else if (res.status === 402 || res.status === 403) warn(`activity endpoint returned ${res.status} — plan tier may exclude on-chain data`);
     else warn(`activity endpoint returned ${res.status}`);
   } catch (e) { warn(`activity probe failed: ${String(e).slice(0, 100)}`); }
+}
+
+console.log("\nDiscovery");
+if (!config.discovery.enabled) warn("discovery disabled (DISCOVERY=off) — the scanner only reacts to tracked wallets");
+else {
+  ok(`polling ${config.discovery.boards.join(", ")} across ${config.discovery.networks.join(", ")} every ${config.discovery.intervalMs / 1000}s`);
+  ok(`up to ${config.discovery.perCycle}/cycle above $${config.discovery.minVolume24hUsd.toLocaleString()} 24h volume, revisit after ${config.discovery.revisitMs / 60_000}m`);
+  const unstreamed = config.discovery.networks.filter((c) => !config.streamChains.includes(c));
+  if (unstreamed.length) ok(`${unstreamed.join(", ")} reached by discovery only — /ws/trades does not carry them`);
 }
 
 console.log("\nConfig");

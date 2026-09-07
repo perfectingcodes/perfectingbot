@@ -7,6 +7,26 @@ export const config = {
     chains: {
         robinhood: { id: 4663, rpc: process.env.RH_RPC_URL ?? "https://rpc.mainnet.chain.robinhood.com" },
         bsc: { id: 56, rpc: process.env.BSC_RPC_URL ?? "https://bsc-dataseed.binance.org" },
+        base: { id: 8453, rpc: process.env.BASE_RPC_URL ?? "https://mainnet.base.org" },
+        solana: { id: 1399811149, rpc: process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com" },
+    },
+    /**
+     * Only robinhood and solana are carried on FOMO's /ws/trades on-chain stream.
+     * Everything else is reached through volume discovery, not streaming — subscribing
+     * a chain the stream does not carry just yields a silent, permanently empty socket.
+     */
+    streamChains: ["robinhood", "solana"],
+    /** Volume-led discovery: which networks to poll, how often, and how deep. */
+    discovery: {
+        enabled: (process.env.DISCOVERY ?? "on") !== "off",
+        networks: (process.env.DISCOVERY_NETWORKS ?? "robinhood,solana,base,bsc").split(",").map((s) => s.trim()).filter(Boolean),
+        boards: (process.env.DISCOVERY_BOARDS ?? "trending,graduated").split(",").map((s) => s.trim()).filter(Boolean),
+        intervalMs: num(process.env.DISCOVERY_INTERVAL_SEC, 90) * 1000,
+        /** Evaluate at most this many per cycle, highest 24h volume first. */
+        perCycle: num(process.env.DISCOVERY_PER_CYCLE, 8),
+        minVolume24hUsd: num(process.env.DISCOVERY_MIN_VOLUME, 50_000),
+        /** Don't re-evaluate the same token more often than this. */
+        revisitMs: num(process.env.DISCOVERY_REVISIT_MIN, 20) * 60_000,
     },
     /** Signal thresholds. These are the knobs worth tuning against replayed history. */
     signal: {

@@ -1,9 +1,9 @@
 import { parseAbiItem, toEventSelector, type Address, type Log } from "viem";
 import { clientFor } from "./clients.ts";
-import type { Chain } from "../types.ts";
+import type { EvmChain } from "../types.ts";
 
 export interface NewPair {
-  chain: Chain;
+  chain: EvmChain;
   pair: Address;
   token0: Address;
   token1: Address;
@@ -28,9 +28,9 @@ export class LaunchpadWatcher {
   private unwatch: (() => void)[] = [];
   private handlers: ((p: NewPair) => void)[] = [];
 
-  private chain: Chain;
+  private chain: EvmChain;
 
-  constructor(chain: Chain) { this.chain = chain; }
+  constructor(chain: EvmChain) { this.chain = chain; }
 
   onNewPair(h: (p: NewPair) => void) { this.handlers.push(h); }
 

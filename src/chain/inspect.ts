@@ -1,14 +1,14 @@
 import { getAddress, type Address } from "viem";
 import { clientFor } from "./clients.ts";
 import { erc20Abi, pairAbi, SWAP_TOPIC } from "./abi.ts";
-import type { Chain } from "../types.ts";
+import type { EvmChain } from "../types.ts";
 
 /**
  * Robinhood Chain publishes no canonical DEX factory, so instead of hardcoding an address
  * we recover the pool from the trade's own receipt: the contract that emitted the UniV2
  * Swap log *is* the pair. This works on any V2-style DEX on any chain, unchanged.
  */
-export async function pairFromTx(chain: Chain, txHash: string): Promise<Address | null> {
+export async function pairFromTx(chain: EvmChain, txHash: string): Promise<Address | null> {
   const client = clientFor(chain);
   const receipt = await client.getTransactionReceipt({ hash: txHash as `0x${string}` });
   const swap = receipt.logs.find((l) => l.topics[0]?.toLowerCase() === SWAP_TOPIC);
@@ -27,7 +27,7 @@ export interface LiquiditySnapshot {
  * known stablecoin address on a chain we may not have address book coverage for.
  */
 export async function poolLiquidity(
-  chain: Chain, pair: Address, token: Address, tokenPriceUsd: number,
+  chain: EvmChain, pair: Address, token: Address, tokenPriceUsd: number,
 ): Promise<LiquiditySnapshot> {
   const client = clientFor(chain);
   const [token0, reserves, decimals] = await Promise.all([
@@ -46,7 +46,7 @@ export async function poolLiquidity(
  * A token that blocks holder transfers will revert here while still accepting buys.
  * Not proof of safety — plenty of traps only arm on sell — but it catches the crude ones.
  */
-export async function transfersWork(chain: Chain, token: Address, holder: Address, amount: bigint): Promise<boolean> {
+export async function transfersWork(chain: EvmChain, token: Address, holder: Address, amount: bigint): Promise<boolean> {
   try {
     await clientFor(chain).simulateContract({
       address: token, abi: erc20Abi, functionName: "transfer",

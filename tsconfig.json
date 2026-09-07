@@ -15,7 +15,8 @@
     "lib": [
       "ES2023",
       "DOM"
-    ]
+    ],
+    "erasableSyntaxOnly": true
   },
   "include": [
     "src/**/*.ts"

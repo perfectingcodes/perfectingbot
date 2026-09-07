@@ -1,7 +1,8 @@
 # perfecting
 
-Scans meme-coin pairs on **Robinhood Chain (4663)** and **BNB Chain (56)**, scores them against
-a tiered evidence model, and explains every verdict in plain English.
+Scans meme-coin pairs on **Robinhood Chain (4663)**, **Solana**, **Base (8453)** and
+**BNB Chain (56)**, scores them against a tiered evidence model, and explains every
+verdict in plain English.
 
 It flags setups. It does not place trades — see [Execution](#execution).
 
@@ -110,6 +111,48 @@ Three rules do most of the work:
   because 86% of early flow was bundled into the launch block.
 - **Wallets, not prints.** One wallet buying five times is one signal.
 
+## How it finds coins
+
+Two independent paths, because they answer different questions.
+
+**1. Smart-money stream** — `wss://api.fomoapi.io/ws/trades`, which carries
+**Robinhood Chain and Solana only**. This is the low-latency path: a tracked wallet buys,
+we evaluate immediately, ~15s before the app feed. It fires only when your watchlist acts,
+so it goes quiet for long stretches.
+
+> Subscribing a chain that stream does not carry (bsc, base) gives you a socket that
+> connects, stays silent forever, and looks perfectly healthy. `config.streamChains` exists
+> to stop that.
+
+**2. Volume-led discovery** — polls FOMO's token boards (`trending`, `graduated`) across
+every configured network every 90s, filters to tokens above a 24h-volume floor, and works
+down them highest-volume-first. This is what keeps the scanner busy continuously, and it is
+the only way Base and BSC are reached at all.
+
+Discovery candidates enter with an **empty buyer list**, so tier 2 scores near zero and the
+card reads *"found by volume, not by a tracked wallet — no smart-money confirmation at
+all"*. That is deliberate: volume is a reason to look, never a reason to buy. Filter the
+dashboard by **found by → volume / smart money** to see each path on its own.
+
+Discovery is rate-aware: at most `DISCOVERY_PER_CYCLE` evaluations per cycle, and a token
+is not re-evaluated inside `DISCOVERY_REVISIT_MIN`. Both matter — every evaluation spends
+FOMO credits and RPC calls.
+
+## Solana
+
+Solana is not EVM, so tier 1 is a different implementation, not a port. `src/chain/solana.ts`
+talks plain JSON-RPC (no `@solana/web3.js` — three read methods don't justify the dependency):
+
+| check | why it matters |
+|---|---|
+| **freeze authority** | *the* Solana honeypot — if still live, the issuer can freeze your token account and stop you selling. Vetoes. |
+| **mint authority** | if still live, supply can be inflated out from under holders |
+| **top-10 concentration** | via `getTokenLargestAccounts`. Note it returns *accounts*, not people — one actor across many accounts means this can only ever **understate** concentration. Vetoes. |
+
+Verified against mainnet: USDC reads both authorities live (Circle retains them), BONK reads
+both revoked. Launch-bundling and same-funder clustering are **not implemented for Solana
+yet**, and that check reports `unknown` — costing score — rather than quietly passing.
+
 ## What this depends on
 
 - **[fomoapi.io](https://fomoapi.io/docs)** for the social/smart-money layer — independent,
@@ -129,7 +172,11 @@ Verified against the public endpoints on 2026-09-06:
   `src/chain/logs.ts` re-filters every result client-side for this reason.
 - The same endpoint returns `429 Too Many Requests` during an ordinary log scan, and
   oversized-response errors on wide ranges.
-- `bsc-dataseed.binance.org` rejects wide ranges outright (`Request exceeds defined limit`).
+- `bsc-dataseed.binance.org` and `mainnet.base.org` reject wide ranges outright
+  (`Request exceeds defined limit`).
+- `api.mainnet-beta.solana.com` answers `getAccountInfo` fine but returns **HTTP 429 for
+  `getTokenLargestAccounts`** even on a single call, so holder concentration reads as
+  unmeasured. Use Helius, QuickNode, or Triton.
 
 `getLogsChunked` adapts its range and backs off, and reports `complete: false` when it
 could not scan the whole window — an incomplete scan can *condemn* a token but never

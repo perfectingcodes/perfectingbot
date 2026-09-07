@@ -7,7 +7,8 @@ import { inspectCluster } from "../chain/cluster.ts";
 import { runGates } from "./gates.ts";
 import { ev, fromGate, type Evidence } from "./evidence.ts";
 import type { SocialTracker } from "./social.ts";
-import type { TradeEvent } from "../types.ts";
+import { isEvm, type TradeEvent } from "../types.ts";
+import { mintInfo, concentration } from "../chain/solana.ts";
 
 export interface TraderQuality { handle?: string; rank?: number; pnlUsd?: number; window?: string; bookUsd?: number }
 export interface Buy { wallet: string; handle?: string; usdValue: number; at: number }
@@ -36,83 +37,26 @@ export async function analyze(
   const holders = byName.get("holders");
   const honeypot = byName.get("honeypot");
 
+  // On Solana the equivalent protection is the freeze authority, checked in solanaTierOne.
   if (honeypot) out.push(fromGate(honeypot, 1, 0.22, true));
   if (liq) out.push(fromGate(liq, 1, 0.18, true));
   if (conc) out.push(fromGate(conc, 1, 0.14, true));
   if (holders) out.push(fromGate(holders, 1, 0.08, false));
   if (flow) out.push(fromGate(flow, 1, 0.10, false));
 
-  let pair: Address | null = null;
-  if (trigger.txHash) {
-    pair = await pairFromTx(trigger.chain, trigger.txHash).catch(() => null);
-  }
-
-  // Contract rug surface: mint, ownership, LP lock, LP pulls.
-  try {
-    const safety = await inspectSafety(trigger.chain, token, pair);
-    out.push(ev(1, "lp-pulled",
-      safety.lpRemovedRecently === true ? "fail" : safety.lpRemovedRecently === false ? "pass" : "unknown",
-      safety.lpRemovedRecently === true ? "liquidity was REMOVED from this pool in the last ~5k blocks"
-        : safety.lpRemovedRecently === false ? "no liquidity removals in recent history"
-        : "could not scan far enough to rule out a liquidity pull",
-      { share: 0.10, veto: true }));
-
-    out.push(ev(1, "mint", safety.mintable === null ? "unknown" : safety.mintable ? "warn" : "pass",
-      safety.mintable === null ? "could not read contract bytecode to check for a mint function"
-        : safety.mintable ? "contract exposes mint() — supply can be inflated" : "no mint function in bytecode",
-      { share: 0.08 }));
-
-    out.push(ev(1, "ownership", safety.ownerRenounced === null ? "unknown" : safety.ownerRenounced ? "pass" : "warn",
-      safety.ownerRenounced === null ? "no standard owner() to check"
-        : safety.ownerRenounced ? "ownership renounced" : "owner still controls the contract (taxes/pause can change)",
-      { share: 0.06 }));
-
-    const lp = safety.lpBurnedOrLockedPct;
-    out.push(ev(1, "lp-locked", lp === null ? "unknown" : lp >= 90 ? "pass" : lp >= 50 ? "warn" : "fail",
-      lp === null ? "could not read LP token supply" : `${lp.toFixed(1)}% of LP is burned or in a visible sink`,
-      { share: 0.06 }));
-  } catch (err) {
-    out.push(ev(1, "contract-safety", "unknown", `contract checks failed: ${String(err).slice(0, 100)}`, { share: 0.30 }));
-  }
-
-  // Insider distribution: bundled launch buys and same-funder clusters.
-  if (pair) {
-    try {
-      const cluster = await inspectCluster(trigger.chain, pair);
-      // An incomplete swap scan cannot clear a token — only condemn one.
-      out.push(ev(1, "bundling",
-        cluster.suspicious ? "fail" : cluster.complete ? "pass" : "unknown",
-        cluster.detail, { share: 0.12, veto: true }));
-
-      if (cluster.firstBuyers.length) {
-        const fresh = await freshWalletShare(trigger.chain, cluster.firstBuyers.slice(0, 20));
-        out.push(ev(1, "fresh-wallets", fresh > 0.6 ? "fail" : fresh > 0.35 ? "warn" : "pass",
-          `${Math.round(fresh * 100)}% of early buyers are brand-new wallets`, { share: 0.08 }));
-      }
-    } catch (err) {
-      out.push(ev(1, "bundling", "unknown", `cluster analysis failed: ${String(err).slice(0, 100)}`, { share: 0.20 }));
-    }
+  if (isEvm(trigger.chain)) {
+    await evmTierOne(out, fomo, trigger);
   } else {
-    out.push(ev(1, "bundling", "unknown", "no pool address recovered — cannot check launch bundling", { share: 0.20 }));
-  }
-
-  // Dev behaviour.
-  try {
-    const devs: any = await fomo.tokenDevs(trigger.token.address);
-    const selling = Array.isArray(devs) ? devs.some((d: any) => (d?.soldPercent ?? 0) > config.gates.maxDevSoldPercent)
-      : (devs?.soldPercent ?? 0) > config.gates.maxDevSoldPercent;
-    out.push(ev(1, "dev-selling", selling ? "fail" : "pass",
-      selling ? `dev has sold more than ${config.gates.maxDevSoldPercent}% of their position` : "dev position looks intact",
-      { share: 0.10, veto: true }));
-  } catch {
-    out.push(ev(1, "dev-selling", "unknown", "dev position data unavailable", { share: 0.10 }));
+    await solanaTierOne(out, trigger);
   }
 
   // ---- Tier 2: smart-money consensus ----------------------------------------
   const n = buyers.length;
   out.push(ev(2, "consensus", n >= 3 ? "pass" : n >= 2 ? "warn" : "fail",
-    `${n} independent tracked wallet${n === 1 ? "" : "s"} bought within ${Math.round(config.signal.consensusWindowMs / 60_000)}m`,
-    { share: 0.40, credit: Math.min(1, (n - 1) / 4) }));
+    n === 0
+      ? "found by volume, not by a tracked wallet — no smart-money confirmation at all"
+      : `${n} independent tracked wallet${n === 1 ? "" : "s"} bought within ${Math.round(config.signal.consensusWindowMs / 60_000)}m`,
+    { share: 0.40, credit: Math.max(0, Math.min(1, (n - 1) / 4)) }));
 
   // Track record, and explicitly prefer durable PnL over 24h lottery winners.
   const ranked = buyers.map((b) => quality.get(b.wallet.toLowerCase())).filter(Boolean) as TraderQuality[];
@@ -152,4 +96,104 @@ export async function analyze(
   }
 
   return out;
+}
+
+
+/** EVM tier-1: pool discovery from the trigger tx, contract safety, launch bundling. */
+async function evmTierOne(out: Evidence[], fomo: FomoClient, trigger: TradeEvent) {
+  if (!isEvm(trigger.chain)) return;
+  const chain = trigger.chain;
+  const token = getAddress(trigger.token.address);
+
+  let pair: Address | null = null;
+  if (trigger.txHash) pair = await pairFromTx(chain, trigger.txHash).catch(() => null);
+
+  try {
+    const safety = await inspectSafety(chain, token, pair);
+    out.push(ev(1, "lp-pulled",
+      safety.lpRemovedRecently === true ? "fail" : safety.lpRemovedRecently === false ? "pass" : "unknown",
+      safety.lpRemovedRecently === true ? "liquidity was REMOVED from this pool in the last ~5k blocks"
+        : safety.lpRemovedRecently === false ? "no liquidity removals in recent history"
+        : "could not scan far enough to rule out a liquidity pull",
+      { share: 0.10, veto: true }));
+
+    out.push(ev(1, "mint", safety.mintable === null ? "unknown" : safety.mintable ? "warn" : "pass",
+      safety.mintable === null ? "could not read contract bytecode to check for a mint function"
+        : safety.mintable ? "contract exposes mint() — supply can be inflated" : "no mint function in bytecode",
+      { share: 0.08 }));
+
+    out.push(ev(1, "ownership", safety.ownerRenounced === null ? "unknown" : safety.ownerRenounced ? "pass" : "warn",
+      safety.ownerRenounced === null ? "no standard owner() to check"
+        : safety.ownerRenounced ? "ownership renounced" : "owner still controls the contract (taxes/pause can change)",
+      { share: 0.06 }));
+
+    const lp = safety.lpBurnedOrLockedPct;
+    out.push(ev(1, "lp-locked", lp === null ? "unknown" : lp >= 90 ? "pass" : lp >= 50 ? "warn" : "fail",
+      lp === null ? "could not read LP token supply" : `${lp.toFixed(1)}% of LP is burned or in a visible sink`,
+      { share: 0.06 }));
+  } catch (err) {
+    out.push(ev(1, "contract-safety", "unknown", `contract checks failed: ${String(err).slice(0, 100)}`, { share: 0.30 }));
+  }
+
+  if (pair) {
+    try {
+      const cluster = await inspectCluster(chain, pair);
+      out.push(ev(1, "bundling",
+        cluster.suspicious ? "fail" : cluster.complete ? "pass" : "unknown",
+        cluster.detail, { share: 0.12, veto: true }));
+
+      if (cluster.firstBuyers.length) {
+        const fresh = await freshWalletShare(chain, cluster.firstBuyers.slice(0, 20));
+        out.push(ev(1, "fresh-wallets", fresh > 0.6 ? "fail" : fresh > 0.35 ? "warn" : "pass",
+          `${Math.round(fresh * 100)}% of early buyers are brand-new wallets`, { share: 0.08 }));
+      }
+    } catch (err) {
+      out.push(ev(1, "bundling", "unknown", `cluster analysis failed: ${String(err).slice(0, 100)}`, { share: 0.20 }));
+    }
+  } else {
+    out.push(ev(1, "bundling", "unknown", "no pool address recovered — cannot check launch bundling", { share: 0.20 }));
+  }
+}
+
+/**
+ * Solana tier-1. The two mint authorities carry most of the weight here: a live
+ * freeze authority is the Solana honeypot — the issuer can freeze your token account
+ * and stop you selling — and a live mint authority means supply can be inflated.
+ * Launch-bundling analysis is not implemented for Solana yet and says so rather than
+ * quietly scoring as if it had passed.
+ */
+async function solanaTierOne(out: Evidence[], trigger: TradeEvent) {
+  const mint = trigger.token.address;
+  try {
+    const info = await mintInfo(mint);
+    out.push(ev(1, "freeze-authority",
+      info.freezeAuthorityRevoked === null ? "unknown" : info.freezeAuthorityRevoked ? "pass" : "fail",
+      info.freezeAuthorityRevoked === null ? "could not read the mint account"
+        : info.freezeAuthorityRevoked ? "freeze authority revoked — your account cannot be frozen"
+        : "FREEZE AUTHORITY STILL LIVE — the issuer can freeze your account and stop you selling",
+      { share: 0.24, veto: true }));
+
+    out.push(ev(1, "mint-authority",
+      info.mintAuthorityRevoked === null ? "unknown" : info.mintAuthorityRevoked ? "pass" : "warn",
+      info.mintAuthorityRevoked === null ? "could not read the mint account"
+        : info.mintAuthorityRevoked ? "mint authority revoked — supply is fixed"
+        : "mint authority still live — supply can be inflated",
+      { share: 0.14 }));
+  } catch (err) {
+    out.push(ev(1, "mint-account", "unknown", `mint account unreadable: ${String(err).slice(0, 100)}`, { share: 0.38 }));
+  }
+
+  try {
+    const conc = await concentration(mint);
+    out.push(ev(1, "sol-concentration",
+      conc.top10Percent === null ? "unknown" : conc.top10Percent <= config.gates.maxTop10Percent ? "pass" : "fail",
+      conc.top10Percent === null ? "could not read largest token accounts"
+        : `top 10 accounts hold ${conc.top10Percent.toFixed(1)}% (max ${config.gates.maxTop10Percent}%) — accounts, not people, so this understates`,
+      { share: 0.14, veto: true }));
+  } catch (err) {
+    out.push(ev(1, "sol-concentration", "unknown", `largest-accounts read failed: ${String(err).slice(0, 100)}`, { share: 0.14 }));
+  }
+
+  out.push(ev(1, "bundling", "unknown",
+    "launch-bundling and same-funder analysis is not implemented for Solana yet", { share: 0.14 }));
 }

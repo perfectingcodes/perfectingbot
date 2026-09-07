@@ -2,7 +2,7 @@ import { getAddress, type Address } from "viem";
 import { clientFor } from "./clients.ts";
 import { SWAP_TOPIC } from "./abi.ts";
 import { getLogsChunked } from "./logs.ts";
-import type { Chain } from "../types.ts";
+import type { EvmChain } from "../types.ts";
 
 export interface ClusterReport {
   firstBuyers: Address[];
@@ -22,7 +22,7 @@ export interface ClusterReport {
  * or where the first buyers were all funded by one wallet, is a distribution to one actor.
  * Both are visible on chain; neither shows up in price or social data.
  */
-export async function inspectCluster(chain: Chain, pair: Address, lookbackBlocks = 3n): Promise<ClusterReport> {
+export async function inspectCluster(chain: EvmChain, pair: Address, lookbackBlocks = 3n): Promise<ClusterReport> {
   const client = clientFor(chain);
   const empty: ClusterReport = { firstBuyers: [], bundledCount: 0, bundledPct: 0, largestFunderCluster: 0, suspicious: false, complete: false, detail: "no swap history readable" };
 
@@ -64,7 +64,7 @@ export async function inspectCluster(chain: Chain, pair: Address, lookbackBlocks
  * first. Doing this exactly needs a tracing/indexing provider; with a plain RPC we use the
  * earliest inbound transfer we can see, which is enough to catch the common one-funder pattern.
  */
-async function largestSharedFunder(chain: Chain, buyers: Address[]): Promise<number> {
+async function largestSharedFunder(chain: EvmChain, buyers: Address[]): Promise<number> {
   if (buyers.length === 0) return 0;
   const client = clientFor(chain);
   const funders = new Map<string, number>();

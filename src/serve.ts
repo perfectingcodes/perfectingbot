@@ -28,6 +28,9 @@ function filtered(url: URL): Record_[] {
   const sinceHours = Number(url.searchParams.get("sinceHours") ?? 0);
 
   if (chain && chain !== "all") rows = rows.filter((r) => r.setup.chain === chain);
+  const source = url.searchParams.get("source");
+  // Older records predate the source field; treat those as stream candidates.
+  if (source && source !== "all") rows = rows.filter((r) => (r.setup.source ?? "stream") === source);
   if (label && label !== "all") rows = rows.filter((r) => r.assessment.label === label);
   if (minScore > 0) rows = rows.filter((r) => r.assessment.score >= minScore);
   if (sinceHours > 0) { const cut = Date.now() - sinceHours * 3_600_000; rows = rows.filter((r) => r.at >= cut); }

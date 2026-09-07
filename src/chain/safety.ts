@@ -2,7 +2,7 @@ import { getAddress, zeroAddress, type Address } from "viem";
 import { clientFor } from "./clients.ts";
 import { getLogsChunked } from "./logs.ts";
 import { erc20Abi, ownableAbi, TRANSFER_TOPIC, BURN_TOPIC } from "./abi.ts";
-import type { Chain } from "../types.ts";
+import type { EvmChain } from "../types.ts";
 
 export interface SafetyReport {
   ownerRenounced: boolean | null;
@@ -23,7 +23,7 @@ const BURN_SINKS = new Set([
  * Contract-level rug surface, read straight from chain state rather than a vendor's
  * "is it safe" boolean — we want to see the individual facts and weigh them ourselves.
  */
-export async function inspectSafety(chain: Chain, token: Address, pair: Address | null): Promise<SafetyReport> {
+export async function inspectSafety(chain: EvmChain, token: Address, pair: Address | null): Promise<SafetyReport> {
   const client = clientFor(chain);
   const notes: string[] = [];
   const report: SafetyReport = { ownerRenounced: null, mintable: null, lpBurnedOrLockedPct: null, lpRemovedRecently: null, notes };
@@ -85,7 +85,7 @@ export async function inspectSafety(chain: Chain, token: Address, pair: Address 
 }
 
 /** Wallets funded by the same source, or created moments before the launch, are one actor. */
-export async function freshWalletShare(chain: Chain, wallets: Address[]): Promise<number> {
+export async function freshWalletShare(chain: EvmChain, wallets: Address[]): Promise<number> {
   const client = clientFor(chain);
   const nonces = await Promise.all(wallets.map((w) => client.getTransactionCount({ address: w }).catch(() => 999)));
   const fresh = nonces.filter((n) => n <= 3).length;

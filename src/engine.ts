@@ -60,6 +60,33 @@ export class Engine {
     }
   }
 
+  /**
+   * Volume-discovered candidate: no tracked wallet bought it, so it bypasses the
+   * consensus precondition and is evaluated on its own merits. Tier 2 will score
+   * near zero, which is correct — volume is a reason to look, not a reason to buy.
+   */
+  async evaluateDiscovered(e: TradeEvent, meta: { priceUsd?: number; volume24hUsd?: number; marketCapUsd?: number; change24h?: number }) {
+    const key = `${e.chain}:${e.token.address}`;
+    if (this.evaluating.has(key)) return null;
+    this.evaluating.add(key);
+    try {
+      this.stats.candidates++;
+      const setup: Setup = {
+        token: e.token, chain: e.chain, buyers: [], priceUsd: meta.priceUsd ?? 0,
+        firstSeen: Date.now(), leadMs: 0, source: "discovery",
+        volume24hUsd: meta.volume24hUsd, marketCapUsd: meta.marketCapUsd, change24h: meta.change24h,
+      };
+      const evidence = await analyze(this.fomo, e, [], this.quality, this.social, meta.priceUsd ?? 0);
+      const assessment = assess(evidence);
+      console.log(explain(setup, assessment));
+      recordSetup(setup, assessment);
+      if (assessment.label === "REJECT") this.stats.rejected++; else this.stats.setups++;
+      return { setup, assessment };
+    } finally {
+      this.evaluating.delete(key);
+    }
+  }
+
   async handle(e: TradeEvent): Promise<{ setup: Setup; assessment: Assessment } | null> {
     this.stats.seen++;
     const wallet = e.trader.wallet.toLowerCase();
@@ -89,6 +116,7 @@ export class Engine {
         token: e.token, chain: e.chain, buyers, priceUsd,
         firstSeen: Math.min(...buyers.map((b) => b.at)),
         leadMs: Math.max(0, e.seenAt - e.blockTs),
+        source: "stream",
       };
 
       const evidence = await analyze(this.fomo, e, buyers, this.quality, this.social, priceUsd);

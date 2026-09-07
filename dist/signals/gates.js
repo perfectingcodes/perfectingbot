@@ -1,6 +1,7 @@
 import { getAddress } from "viem";
 import { config } from "../config.js";
 import { pairFromTx, poolLiquidity, transfersWork } from "../chain/inspect.js";
+import { isEvm } from "../types.js";
 /**
  * Hard risk gates. Every one must pass — these are vetoes, not score inputs,
  * because "great social signal" never compensates for a token you cannot sell.
@@ -32,8 +33,12 @@ export async function runGates(fomo, trigger, tokenPriceUsd) {
             });
         }
     }
-    // Liquidity + tradability, straight from chain state.
-    if (trigger.txHash) {
+    // Liquidity + tradability, straight from chain state. EVM only: pool discovery works
+    // by reading the trigger tx's Swap log, which has no Solana analogue here.
+    if (!isEvm(trigger.chain)) {
+        gates.push({ name: "liquidity", passed: true, detail: "pool depth not verified on Solana — see sol-concentration and the mint authorities" });
+    }
+    else if (trigger.txHash) {
         try {
             const pair = await pairFromTx(trigger.chain, trigger.txHash);
             if (!pair) {
@@ -54,7 +59,9 @@ export async function runGates(fomo, trigger, tokenPriceUsd) {
     else {
         gates.push({ name: "liquidity", passed: false, detail: "no txHash on event (feed source) — cannot verify pool on-chain" });
     }
-    gates.push(await honeypotGate(fomo, trigger.chain, trigger.token.address));
+    if (isEvm(trigger.chain)) {
+        gates.push(await honeypotGate(fomo, trigger.chain, trigger.token.address));
+    }
     return gates;
 }
 /** Uses a real holder from FOMO's holder list as the simulated sender. */
