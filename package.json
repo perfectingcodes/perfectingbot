@@ -7,6 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "setup": "node -e \"const f=require('fs');if(f.existsSync('.env')){console.log('.env already exists \u2014 leaving it alone');}else{f.copyFileSync('.env.example','.env');console.log('created .env \u2014 add FOMO_API_KEY and SOLANA_RPC_URL, then: npm run doctor');}\"",
     "dev": "node --env-file-if-exists=.env --experimental-strip-types src/main.ts",
     "scanner": "node --env-file-if-exists=.env --experimental-strip-types src/index.ts",
     "serve": "node --experimental-strip-types src/serve.ts",

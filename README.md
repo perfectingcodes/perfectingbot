@@ -6,6 +6,34 @@ verdict in plain English.
 
 It flags setups. It does not place trades — see [Execution](#execution).
 
+## Quickstart
+
+```bash
+npm install
+npm run setup      # creates .env
+```
+
+Open `.env` and fill in two lines:
+
+- `FOMO_API_KEY=` — from [fomoapi.io](https://fomoapi.io/docs). Any tier works for volume
+  discovery. **Growth or above** is what buys the ~15s lead on the smart-money stream.
+- `SOLANA_RPC_URL=` — a free Helius / QuickNode key. The public Solana endpoint refuses
+  the holder-distribution call, so without this Solana runs on two checks instead of four.
+
+Then:
+
+```bash
+npm run doctor     # tells you what works and what doesn't
+npm run dev        # dashboard + scanner
+```
+
+Open **http://localhost:5173**.
+
+`npm run doctor` will still flag the EVM RPCs as rate-limited — that's expected on public
+endpoints and only affects Robinhood/Base/BSC on-chain checks. It scans fine without them;
+those checks just read as unmeasured. Add `RH_RPC_URL` / `BASE_RPC_URL` / `BSC_RPC_URL`
+when you want them.
+
 ## Run it
 
 ```bash
